@@ -4,6 +4,14 @@ A thin, JSON-native MongoDB access layer for Go.
 
 Pass JSON in, get JSON back. No struct tags, no code generation, no ORM ceremony — just a clean bridge between your JSON data and MongoDB.
 
+## Features
+
+- JSON-native: no struct tags, no codegen, no ORM
+- CRUD, aggregation, and transactions out of the box
+- Sorting, pagination, and multi-field ordering
+- ObjectIDs as plain hex strings — no Extended JSON noise
+- Thin wrapper over the official MongoDB Go driver — no magic, full driver access when needed
+
 ## Installation
 
 ```bash
