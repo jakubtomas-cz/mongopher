@@ -375,7 +375,7 @@ func TestFind_WithSort(t *testing.T) {
 	}
 
 	// Ascending
-	results, err := c.Find(ctx, mongopher.EmptyFilter(), mongopher.WithSort("score", true))
+	results, err := c.Find(ctx, mongopher.EmptyFilter(), mongopher.WithSort("score", mongopher.ASC))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -390,7 +390,7 @@ func TestFind_WithSort(t *testing.T) {
 	}
 
 	// Descending
-	results, err = c.Find(ctx, mongopher.EmptyFilter(), mongopher.WithSort("score", false))
+	results, err = c.Find(ctx, mongopher.EmptyFilter(), mongopher.WithSort("score", mongopher.DESC))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -419,8 +419,8 @@ func TestFind_WithSort_MultiField(t *testing.T) {
 	}
 
 	results, err := c.Find(ctx, mongopher.EmptyFilter(),
-		mongopher.WithSort("role", true), // role ASC
-		mongopher.WithSort("name", true), // then name ASC
+		mongopher.WithSort("role", mongopher.ASC), // role ASC
+		mongopher.WithSort("name", mongopher.ASC), // then name ASC
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -837,5 +837,114 @@ func TestAggregate_InvalidPipeline(t *testing.T) {
 	_, err := c.Aggregate(context.Background(), []byte(`not json`))
 	if !errors.Is(err, mongopher.ErrInvalidJSON) {
 		t.Fatalf("expected ErrInvalidJSON, got %v", err)
+	}
+}
+
+func TestCreateIndex(t *testing.T) {
+	ctx := context.Background()
+	c := col(t)
+
+	name, err := c.CreateIndex(ctx, "email", mongopher.ASC)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if name == "" {
+		t.Fatal("expected non-empty index name")
+	}
+}
+
+func TestCreateIndex_Unique(t *testing.T) {
+	ctx := context.Background()
+	c := col(t)
+
+	_, err := c.CreateIndex(ctx, "email", mongopher.ASC, mongopher.WithUnique())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// First insert succeeds
+	if _, err := c.InsertOne(ctx, []byte(`{"email":"alice@example.com"}`)); err != nil {
+		t.Fatal(err)
+	}
+	// Duplicate insert must fail
+	_, err = c.InsertOne(ctx, []byte(`{"email":"alice@example.com"}`))
+	if err == nil {
+		t.Fatal("expected duplicate key error, got nil")
+	}
+}
+
+func TestCreateIndex_Desc(t *testing.T) {
+	ctx := context.Background()
+	c := col(t)
+
+	name, err := c.CreateIndex(ctx, "createdAt", mongopher.DESC)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if name == "" {
+		t.Fatal("expected non-empty index name")
+	}
+}
+
+func TestListIndexes(t *testing.T) {
+	ctx := context.Background()
+	c := col(t)
+
+	// MongoDB always creates a default _id index
+	if _, err := c.InsertOne(ctx, []byte(`{"x":1}`)); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := c.CreateIndex(ctx, "email", mongopher.ASC, mongopher.WithUnique()); err != nil {
+		t.Fatal(err)
+	}
+
+	indexes, err := c.ListIndexes(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Expect at least the _id index and our new one
+	if len(indexes) < 2 {
+		t.Fatalf("expected at least 2 indexes, got %d", len(indexes))
+	}
+	for _, idx := range indexes {
+		var doc map[string]any
+		if err := json.Unmarshal(idx, &doc); err != nil {
+			t.Fatalf("index is not valid JSON: %v", err)
+		}
+		if _, hasName := doc["name"]; !hasName {
+			t.Fatal("expected index document to have a name field")
+		}
+	}
+}
+
+func TestDropIndex(t *testing.T) {
+	ctx := context.Background()
+	c := col(t)
+
+	if _, err := c.InsertOne(ctx, []byte(`{"x":1}`)); err != nil {
+		t.Fatal(err)
+	}
+
+	name, err := c.CreateIndex(ctx, "email", mongopher.ASC)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	before, err := c.ListIndexes(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := c.DropIndex(ctx, name); err != nil {
+		t.Fatal(err)
+	}
+
+	after, err := c.ListIndexes(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(after) != len(before)-1 {
+		t.Fatalf("expected %d indexes after drop, got %d", len(before)-1, len(after))
 	}
 }

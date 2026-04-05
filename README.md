@@ -7,7 +7,7 @@ Pass JSON in, get JSON back. No struct tags, no code generation, no ORM ceremony
 ## Features
 
 - JSON-native: no struct tags, no codegen, no ORM
-- CRUD, aggregation, and transactions out of the box
+- CRUD, aggregation, indexes, and transactions out of the box
 - Sorting, pagination, and multi-field ordering
 - ObjectIDs as plain hex strings — no Extended JSON noise
 - Thin wrapper over the official MongoDB Go driver — no magic, full driver access when needed
@@ -172,7 +172,7 @@ for _, doc := range docs {
 docs, err := col.Find(ctx, filter,
     mongopher.WithLimit(10),
     mongopher.WithSkip(20),
-    mongopher.WithSort("createdAt", false), // false = descending
+    mongopher.WithSort("createdAt", mongopher.DESC),
 )
 ```
 
@@ -180,8 +180,8 @@ docs, err := col.Find(ctx, filter,
 
 ```go
 docs, err := col.Find(ctx, filter,
-    mongopher.WithSort("role", true),      // role ASC
-    mongopher.WithSort("createdAt", false), // then createdAt DESC
+    mongopher.WithSort("role", mongopher.ASC),
+    mongopher.WithSort("createdAt", mongopher.DESC),
 )
 ```
 
@@ -227,6 +227,31 @@ err := col.Drop(ctx)
 ```
 
 Permanently removes the collection and all its documents. This operation is irreversible.
+
+## Indexes
+
+```go
+// Simple index
+name, err := col.CreateIndex(ctx, "email", mongopher.ASC)
+
+// Unique index
+name, err := col.CreateIndex(ctx, "email", mongopher.ASC, mongopher.WithUnique())
+
+// TTL index — documents expire after 3600 seconds
+name, err := col.CreateIndex(ctx, "createdAt", mongopher.ASC, mongopher.WithTTL(3600))
+
+// Sparse index — skips documents missing the field
+name, err := col.CreateIndex(ctx, "phone", mongopher.ASC, mongopher.WithSparse())
+
+// Drop an index by name
+err = col.DropIndex(ctx, name)
+
+// List all indexes
+indexes, err := col.ListIndexes(ctx)
+for _, idx := range indexes {
+    fmt.Println(string(idx))
+}
+```
 
 ## Aggregation
 

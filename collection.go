@@ -36,6 +36,14 @@ type DeleteResult struct {
 	DeletedCount int64
 }
 
+// SortDirection specifies the sort order for an index or query.
+type SortDirection = bool
+
+const (
+	ASC  SortDirection = true
+	DESC SortDirection = false
+)
+
 // FindOption configures a Find call.
 type FindOption func(*findOptions)
 
@@ -52,7 +60,7 @@ func WithLimit(n int64) FindOption { return func(o *findOptions) { o.limit = n }
 func WithSkip(n int64) FindOption { return func(o *findOptions) { o.skip = n } }
 
 // WithSort sorts results by the given field. ascending=true for ASC, false for DESC.
-func WithSort(field string, ascending bool) FindOption {
+func WithSort(field string, ascending SortDirection) FindOption {
 	return func(o *findOptions) {
 		dir := 1
 		if !ascending {
@@ -212,6 +220,83 @@ func (c *Collection) Aggregate(ctx context.Context, pipeline []byte) ([][]byte, 
 	}
 
 	cur, err := c.inner.Aggregate(ctx, stages)
+	if err != nil {
+		return nil, err
+	}
+	defer cur.Close(ctx)
+
+	var results [][]byte
+	for cur.Next(ctx) {
+		var raw bson.D
+		if err := cur.Decode(&raw); err != nil {
+			return nil, err
+		}
+		data, err := bsonToJSON(raw)
+		if err != nil {
+			return nil, err
+		}
+		results = append(results, data)
+	}
+	if err := cur.Err(); err != nil {
+		return nil, err
+	}
+	return results, nil
+}
+
+// IndexOption configures a CreateIndex call.
+type IndexOption func(*indexOptions)
+
+type indexOptions struct {
+	unique bool
+	sparse bool
+	ttl    *int32
+}
+
+// WithUnique makes the index enforce uniqueness across the collection.
+func WithUnique() IndexOption { return func(o *indexOptions) { o.unique = true } }
+
+// WithSparse makes the index skip documents that don't contain the indexed field.
+func WithSparse() IndexOption { return func(o *indexOptions) { o.sparse = true } }
+
+// WithTTL creates a TTL index that automatically deletes documents after the given number of seconds.
+func WithTTL(seconds int32) IndexOption { return func(o *indexOptions) { o.ttl = &seconds } }
+
+// CreateIndex creates an index on a single field and returns the index name.
+// ascending=true for ASC, false for DESC.
+func (c *Collection) CreateIndex(ctx context.Context, field string, ascending SortDirection, opts ...IndexOption) (string, error) {
+	io := &indexOptions{}
+	for _, o := range opts {
+		o(io)
+	}
+
+	dir := 1
+	if !ascending {
+		dir = -1
+	}
+	keys := bson.D{{Key: field, Value: dir}}
+
+	indexOpts := options.Index()
+	if io.unique {
+		indexOpts.SetUnique(true)
+	}
+	if io.sparse {
+		indexOpts.SetSparse(true)
+	}
+	if io.ttl != nil {
+		indexOpts.SetExpireAfterSeconds(*io.ttl)
+	}
+
+	return c.inner.Indexes().CreateOne(ctx, mongo.IndexModel{Keys: keys, Options: indexOpts})
+}
+
+// DropIndex drops an index by name.
+func (c *Collection) DropIndex(ctx context.Context, name string) error {
+	return c.inner.Indexes().DropOne(ctx, name)
+}
+
+// ListIndexes returns all indexes on the collection as a slice of JSON documents.
+func (c *Collection) ListIndexes(ctx context.Context) ([][]byte, error) {
+	cur, err := c.inner.Indexes().List(ctx)
 	if err != nil {
 		return nil, err
 	}

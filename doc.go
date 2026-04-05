@@ -62,7 +62,7 @@
 //	docs, err := col.Find(ctx, mongopher.EmptyFilter(),
 //	    mongopher.WithLimit(10),
 //	    mongopher.WithSkip(0),
-//	    mongopher.WithSort("name", true),
+//	    mongopher.WithSort("name", mongopher.ASC),
 //	)
 //	for _, d := range docs {
 //	    fmt.Println(string(d))
@@ -74,8 +74,8 @@
 // WithSort can be applied multiple times for multi-field sorting:
 //
 //	col.Find(ctx, filter,
-//	    mongopher.WithSort("role", true),       // role ASC
-//	    mongopher.WithSort("createdAt", false),  // then createdAt DESC
+//	    mongopher.WithSort("role", mongopher.ASC),
+//	    mongopher.WithSort("createdAt", mongopher.DESC),
 //	)
 //
 // # Updating documents
@@ -105,6 +105,29 @@
 //	n, err := col.CountDocuments(ctx, mongopher.EmptyFilter())
 //
 //	err = col.Drop(ctx) // removes the entire collection
+//
+// # Indexes
+//
+// CreateIndex creates a single-field index and returns its name.
+// Use IndexOption values to configure uniqueness, sparseness, or TTL.
+//
+//	// Simple index
+//	name, err := col.CreateIndex(ctx, "email", mongopher.ASC)
+//
+//	// Unique index
+//	name, err := col.CreateIndex(ctx, "email", mongopher.ASC, mongopher.WithUnique())
+//
+//	// TTL index — documents expire after 3600 seconds
+//	name, err := col.CreateIndex(ctx, "createdAt", mongopher.ASC, mongopher.WithTTL(3600))
+//
+//	// Drop an index by name
+//	err = col.DropIndex(ctx, name)
+//
+//	// List all indexes as JSON documents
+//	indexes, err := col.ListIndexes(ctx)
+//	for _, idx := range indexes {
+//	    fmt.Println(string(idx))
+//	}
 //
 // # Aggregation
 //
