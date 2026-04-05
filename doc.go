@@ -106,6 +106,23 @@
 //
 //	err = col.Drop(ctx) // removes the entire collection
 //
+// # Transactions
+//
+// WithTransaction runs fn inside a multi-document ACID transaction.
+// The ctx passed to fn must be forwarded to all collection operations
+// so they participate in the transaction. Returning a non-nil error
+// aborts the transaction; returning nil commits it.
+// Requires a replica set or sharded cluster.
+//
+//	err := client.WithTransaction(ctx, func(ctx context.Context) error {
+//	    if _, err := orders.InsertOne(ctx, orderJSON); err != nil {
+//	        return err
+//	    }
+//	    filter, _ := mongopher.FilterFromJSON([]byte(`{"sku":"ABC"}`))
+//	    _, err := inventory.UpdateOne(ctx, filter, []byte(`{"$inc":{"stock":-1}}`))
+//	    return err
+//	})
+//
 // # _id handling
 //
 // MongoDB ObjectIDs are returned as plain hex strings, not Extended JSON.

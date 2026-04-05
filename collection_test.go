@@ -13,7 +13,7 @@ import (
 )
 
 const (
-	testURI = "mongodb://localhost:27017"
+	testURI = "mongodb://localhost:27017/?replicaSet=rs0"
 	testDB  = "mongopher_test"
 )
 
@@ -523,6 +523,86 @@ func TestInsertOne_CustomID(t *testing.T) {
 	json.Unmarshal(doc, &result)
 	if result["_id"] != "my-custom-id" {
 		t.Fatalf("expected _id=my-custom-id, got %v", result["_id"])
+	}
+}
+
+func TestWithTransaction_Commit(t *testing.T) {
+	ctx := context.Background()
+	c := col(t)
+
+	err := testClient.WithTransaction(ctx, func(ctx context.Context) error {
+		_, err := c.InsertOne(ctx, []byte(`{"name":"Alice"}`))
+		return err
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	count, err := c.CountDocuments(ctx, mongopher.EmptyFilter())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if count != 1 {
+		t.Fatalf("expected 1 document after commit, got %d", count)
+	}
+}
+
+func TestWithTransaction_Rollback(t *testing.T) {
+	ctx := context.Background()
+	c := col(t)
+
+	err := testClient.WithTransaction(ctx, func(ctx context.Context) error {
+		if _, err := c.InsertOne(ctx, []byte(`{"name":"Alice"}`)); err != nil {
+			return err
+		}
+		return errors.New("intentional rollback")
+	})
+	if err == nil {
+		t.Fatal("expected error from transaction, got nil")
+	}
+
+	count, err := c.CountDocuments(ctx, mongopher.EmptyFilter())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if count != 0 {
+		t.Fatalf("expected 0 documents after rollback, got %d", count)
+	}
+}
+
+func TestWithTransaction_MultiCollection(t *testing.T) {
+	ctx := context.Background()
+	orders := col(t)
+	// col() names the collection after the test — use a second collection manually
+	inventory := testClient.Collection(t.Name() + "_inventory")
+	t.Cleanup(func() { _ = inventory.Drop(context.Background()) })
+
+	_, err := inventory.InsertOne(ctx, []byte(`{"sku":"ABC","stock":10}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = testClient.WithTransaction(ctx, func(ctx context.Context) error {
+		if _, err := orders.InsertOne(ctx, []byte(`{"sku":"ABC","qty":2}`)); err != nil {
+			return err
+		}
+		filter, _ := mongopher.FilterFromJSON([]byte(`{"sku":"ABC"}`))
+		_, err := inventory.UpdateOne(ctx, filter, []byte(`{"$inc":{"stock":-2}}`))
+		return err
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	filter, _ := mongopher.FilterFromJSON([]byte(`{"sku":"ABC"}`))
+	doc, err := inventory.FindOne(ctx, filter)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var result map[string]any
+	json.Unmarshal(doc, &result)
+	if result["stock"] != float64(8) {
+		t.Fatalf("expected stock=8 after transaction, got %v", result["stock"])
 	}
 }
 

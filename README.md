@@ -220,6 +220,23 @@ err := col.Drop(ctx)
 
 Permanently removes the collection and all its documents. This operation is irreversible.
 
+## Transactions
+
+`WithTransaction` runs a function inside a multi-document ACID transaction. The `ctx` received in the callback must be forwarded to all collection operations so they participate in the same transaction. Returning a non-nil error aborts; returning nil commits.
+
+```go
+err := client.WithTransaction(ctx, func(ctx context.Context) error {
+    if _, err := orders.InsertOne(ctx, orderJSON); err != nil {
+        return err // triggers rollback
+    }
+    filter, _ := mongopher.FilterFromJSON([]byte(`{"sku":"ABC"}`))
+    _, err := inventory.UpdateOne(ctx, filter, []byte(`{"$inc":{"stock":-1}}`))
+    return err
+})
+```
+
+Transactions require a replica set or sharded cluster — they are not supported on standalone MongoDB instances.
+
 ## The `_id` field
 
 MongoDB ObjectIDs are returned as plain hex strings, not as Extended JSON objects:

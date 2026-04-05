@@ -28,6 +28,23 @@ func Connect(ctx context.Context, uri, dbName string, opts ...*options.ClientOpt
 	return &Client{inner: inner, dbName: dbName}, nil
 }
 
+// WithTransaction runs fn inside a multi-document ACID transaction.
+// The ctx passed to fn must be forwarded to all collection operations
+// so they participate in the transaction. Returning a non-nil error
+// from fn aborts the transaction; returning nil commits it.
+// Requires a replica set or sharded cluster.
+func (c *Client) WithTransaction(ctx context.Context, fn func(ctx context.Context) error) error {
+	session, err := c.inner.StartSession()
+	if err != nil {
+		return err
+	}
+	defer session.EndSession(ctx)
+	_, err = session.WithTransaction(mongo.NewSessionContext(ctx, session), func(ctx context.Context) (any, error) {
+		return nil, fn(ctx)
+	})
+	return err
+}
+
 // Disconnect closes the underlying connection.
 func (c *Client) Disconnect(ctx context.Context) error {
 	return c.inner.Disconnect(ctx)
