@@ -299,7 +299,14 @@ err := client.WithTransaction(ctx, func(ctx context.Context) error {
 })
 ```
 
-Transactions require a replica set or sharded cluster — they are not supported on standalone MongoDB instances.
+Transactions require a replica set or sharded cluster. On a standalone instance, `WithTransaction` returns `ErrTransactionsNotSupported`:
+
+```go
+err := client.WithTransaction(ctx, fn)
+if errors.Is(err, mongopher.ErrTransactionsNotSupported) {
+    // instance is not a replica set or sharded cluster
+}
+```
 
 ## The `_id` field
 

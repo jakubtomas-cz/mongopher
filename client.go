@@ -2,6 +2,7 @@ package mongopher
 
 import (
 	"context"
+	"errors"
 
 	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
@@ -32,7 +33,7 @@ func Connect(ctx context.Context, uri, dbName string, opts ...*options.ClientOpt
 // The ctx passed to fn must be forwarded to all collection operations
 // so they participate in the transaction. Returning a non-nil error
 // from fn aborts the transaction; returning nil commits it.
-// Requires a replica set or sharded cluster.
+// Returns ErrTransactionsNotSupported if the instance is not a replica set or sharded cluster.
 func (c *Client) WithTransaction(ctx context.Context, fn func(ctx context.Context) error) error {
 	session, err := c.inner.StartSession()
 	if err != nil {
@@ -42,7 +43,14 @@ func (c *Client) WithTransaction(ctx context.Context, fn func(ctx context.Contex
 	_, err = session.WithTransaction(mongo.NewSessionContext(ctx, session), func(ctx context.Context) (any, error) {
 		return nil, fn(ctx)
 	})
-	return err
+	if err != nil {
+		var ce mongo.CommandError
+		if errors.As(err, &ce) && ce.Code == 20 {
+			return ErrTransactionsNotSupported
+		}
+		return err
+	}
+	return nil
 }
 
 // Disconnect closes the underlying connection.

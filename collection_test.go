@@ -547,6 +547,22 @@ func TestWithTransaction_Commit(t *testing.T) {
 	}
 }
 
+func TestWithTransaction_RegularErrorIsNotTransactionsNotSupported(t *testing.T) {
+	ctx := context.Background()
+	sentinel := errors.New("intentional error")
+
+	err := testClient.WithTransaction(ctx, func(ctx context.Context) error {
+		return sentinel
+	})
+
+	if errors.Is(err, mongopher.ErrTransactionsNotSupported) {
+		t.Fatal("regular transaction error must not be ErrTransactionsNotSupported")
+	}
+	if !errors.Is(err, sentinel) {
+		t.Fatalf("expected sentinel error to be preserved, got %v", err)
+	}
+}
+
 func TestWithTransaction_Rollback(t *testing.T) {
 	ctx := context.Background()
 	c := col(t)

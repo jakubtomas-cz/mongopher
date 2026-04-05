@@ -155,7 +155,7 @@
 // The ctx passed to fn must be forwarded to all collection operations
 // so they participate in the transaction. Returning a non-nil error
 // aborts the transaction; returning nil commits it.
-// Requires a replica set or sharded cluster.
+// Returns ErrTransactionsNotSupported on standalone instances.
 //
 //	err := client.WithTransaction(ctx, func(ctx context.Context) error {
 //	    if _, err := orders.InsertOne(ctx, orderJSON); err != nil {
@@ -165,6 +165,9 @@
 //	    _, err := inventory.UpdateOne(ctx, filter, []byte(`{"$inc":{"stock":-1}}`))
 //	    return err
 //	})
+//	if errors.Is(err, mongopher.ErrTransactionsNotSupported) {
+//	    // instance is not a replica set or sharded cluster
+//	}
 //
 // # _id handling
 //
