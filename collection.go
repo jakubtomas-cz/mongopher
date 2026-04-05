@@ -201,6 +201,40 @@ func (c *Collection) CountDocuments(ctx context.Context, filter Filter) (int64, 
 	return c.inner.CountDocuments(ctx, filter.raw)
 }
 
+// Aggregate executes a MongoDB aggregation pipeline and returns the result documents as JSON.
+// pipeline must be a JSON array of stage documents, e.g.:
+//
+//	[{"$match":{"status":"active"}},{"$group":{"_id":"$city","count":{"$sum":1}}}]
+func (c *Collection) Aggregate(ctx context.Context, pipeline []byte) ([][]byte, error) {
+	var stages []bson.D
+	if err := bson.UnmarshalExtJSON(pipeline, false, &stages); err != nil {
+		return nil, fmt.Errorf("%w: %s", ErrInvalidJSON, err)
+	}
+
+	cur, err := c.inner.Aggregate(ctx, stages)
+	if err != nil {
+		return nil, err
+	}
+	defer cur.Close(ctx)
+
+	var results [][]byte
+	for cur.Next(ctx) {
+		var raw bson.D
+		if err := cur.Decode(&raw); err != nil {
+			return nil, err
+		}
+		data, err := bsonToJSON(raw)
+		if err != nil {
+			return nil, err
+		}
+		results = append(results, data)
+	}
+	if err := cur.Err(); err != nil {
+		return nil, err
+	}
+	return results, nil
+}
+
 // Drop removes the collection from the database.
 func (c *Collection) Drop(ctx context.Context) error {
 	return c.inner.Drop(ctx)

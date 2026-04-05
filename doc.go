@@ -106,6 +106,26 @@
 //
 //	err = col.Drop(ctx) // removes the entire collection
 //
+// # Aggregation
+//
+// Aggregate runs a MongoDB aggregation pipeline. The pipeline is a JSON array
+// of stage documents; each stage transforms the documents passing through it.
+// Returns nil (not an error) when the pipeline produces no results.
+//
+//	pipeline := []byte(`[
+//	    {"$match": {"status": "active"}},
+//	    {"$group": {"_id": "$city", "count": {"$sum": 1}}},
+//	    {"$sort": {"count": -1}}
+//	]`)
+//
+//	docs, err := col.Aggregate(ctx, pipeline)
+//	for _, doc := range docs {
+//	    fmt.Println(string(doc)) // {"_id":"Prague","count":42}
+//	}
+//
+// Common stages: $match (filter), $project (reshape), $group (summarise),
+// $sort, $limit, $skip, $lookup (join), $unwind (flatten arrays).
+//
 // # Transactions
 //
 // WithTransaction runs fn inside a multi-document ACID transaction.

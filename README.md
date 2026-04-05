@@ -220,6 +220,37 @@ err := col.Drop(ctx)
 
 Permanently removes the collection and all its documents. This operation is irreversible.
 
+## Aggregation
+
+`Aggregate` runs a MongoDB aggregation pipeline and returns the result documents as JSON. A pipeline is a JSON array of stage documents — each stage transforms the documents passing through it.
+
+```go
+pipeline := []byte(`[
+    {"$match": {"status": "active"}},
+    {"$group": {"_id": "$city", "count": {"$sum": 1}}},
+    {"$sort": {"count": -1}}
+]`)
+
+docs, err := col.Aggregate(ctx, pipeline)
+for _, doc := range docs {
+    fmt.Println(string(doc)) // {"_id":"Prague","count":42}
+}
+```
+
+`Aggregate` returns `nil` (not an error) when the pipeline produces no results.
+
+### Common stages
+
+| Stage | What it does |
+|---|---|
+| `$match` | Filters documents — like a `Find` filter |
+| `$project` | Reshapes documents: `1` includes a field, `0` excludes it |
+| `$group` | Collapses many documents into fewer, computing summaries (`$sum`, `$avg`, `$min`, `$max`, `$push`) |
+| `$sort` | Orders results |
+| `$limit` / `$skip` | Pagination |
+| `$lookup` | Joins another collection |
+| `$unwind` | Flattens an array field into one document per element |
+
 ## Transactions
 
 `WithTransaction` runs a function inside a multi-document ACID transaction. The `ctx` received in the callback must be forwarded to all collection operations so they participate in the same transaction. Returning a non-nil error aborts; returning nil commits.

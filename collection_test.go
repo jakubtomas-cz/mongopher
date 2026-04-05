@@ -734,3 +734,108 @@ func TestIDFlattening(t *testing.T) {
 		t.Fatalf("expected _id to be a plain string, got %T: %v", id, id)
 	}
 }
+
+func TestAggregate_GroupAndCount(t *testing.T) {
+	ctx := context.Background()
+	c := col(t)
+
+	docs := [][]byte{
+		[]byte(`{"city":"Prague","status":"active"}`),
+		[]byte(`{"city":"Prague","status":"active"}`),
+		[]byte(`{"city":"Brno","status":"active"}`),
+		[]byte(`{"city":"Brno","status":"inactive"}`),
+		[]byte(`{"city":"Brno","status":"inactive"}`),
+	}
+	if _, err := c.InsertMany(ctx, docs); err != nil {
+		t.Fatal(err)
+	}
+
+	pipeline := []byte(`[
+		{"$group": {"_id": "$city", "count": {"$sum": 1}}},
+		{"$sort": {"count": -1}}
+	]`)
+	results, err := c.Aggregate(ctx, pipeline)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(results) != 2 {
+		t.Fatalf("expected 2 groups, got %d", len(results))
+	}
+
+	type group struct {
+		ID    string  `json:"_id"`
+		Count float64 `json:"count"`
+	}
+	var first, second group
+	json.Unmarshal(results[0], &first)
+	json.Unmarshal(results[1], &second)
+
+	if first.ID != "Brno" || first.Count != 3 {
+		t.Fatalf("expected Brno=3, got %s=%v", first.ID, first.Count)
+	}
+	if second.ID != "Prague" || second.Count != 2 {
+		t.Fatalf("expected Prague=2, got %s=%v", second.ID, second.Count)
+	}
+}
+
+func TestAggregate_MatchAndProject(t *testing.T) {
+	ctx := context.Background()
+	c := col(t)
+
+	docs := [][]byte{
+		[]byte(`{"name":"Alice","score":80}`),
+		[]byte(`{"name":"Bob","score":40}`),
+		[]byte(`{"name":"Carol","score":95}`),
+	}
+	if _, err := c.InsertMany(ctx, docs); err != nil {
+		t.Fatal(err)
+	}
+
+	pipeline := []byte(`[
+		{"$match": {"score": {"$gte": 70}}},
+		{"$project": {"_id": 0, "name": 1}}
+	]`)
+	results, err := c.Aggregate(ctx, pipeline)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(results) != 2 {
+		t.Fatalf("expected 2 results after $match, got %d", len(results))
+	}
+	for _, r := range results {
+		var doc map[string]any
+		json.Unmarshal(r, &doc)
+		if _, hasID := doc["_id"]; hasID {
+			t.Fatal("expected _id to be projected out")
+		}
+		if _, hasName := doc["name"]; !hasName {
+			t.Fatal("expected name field in projected result")
+		}
+	}
+}
+
+func TestAggregate_EmptyResult(t *testing.T) {
+	ctx := context.Background()
+	c := col(t)
+
+	if _, err := c.InsertOne(ctx, []byte(`{"x":1}`)); err != nil {
+		t.Fatal(err)
+	}
+
+	pipeline := []byte(`[{"$match": {"x": 999}}]`)
+	results, err := c.Aggregate(ctx, pipeline)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if results != nil {
+		t.Fatalf("expected nil for empty aggregate result, got %v", results)
+	}
+}
+
+func TestAggregate_InvalidPipeline(t *testing.T) {
+	c := col(t)
+	_, err := c.Aggregate(context.Background(), []byte(`not json`))
+	if !errors.Is(err, mongopher.ErrInvalidJSON) {
+		t.Fatalf("expected ErrInvalidJSON, got %v", err)
+	}
+}
