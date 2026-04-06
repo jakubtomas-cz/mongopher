@@ -23,7 +23,7 @@ type Collection interface {
 	FindOneAndDelete(ctx context.Context, filter Filter) ([]byte, error)
 	DeleteOne(ctx context.Context, filter Filter) (DeleteResult, error)
 	DeleteMany(ctx context.Context, filter Filter) (DeleteResult, error)
-	BulkUpdate(ctx context.Context, ops []BulkUpdateOp) (UpdateResult, error)
+	BulkUpdate(ctx context.Context, ops []UpdateSpec) (UpdateResult, error)
 	BulkDelete(ctx context.Context, filters []Filter) (DeleteResult, error)
 	CountDocuments(ctx context.Context, filter Filter) (int64, error)
 	Aggregate(ctx context.Context, pipeline []byte) ([][]byte, error)
@@ -327,15 +327,15 @@ func (c *mongoCollection) DeleteMany(ctx context.Context, filter Filter) (Delete
 	return DeleteResult{DeletedCount: res.DeletedCount}, nil
 }
 
-// BulkUpdateOp specifies a single update operation within a BulkUpdate call.
-type BulkUpdateOp struct {
+// UpdateSpec specifies a single update operation within a BulkUpdate call.
+type UpdateSpec struct {
 	Filter Filter
 	Update []byte
 }
 
 // BulkUpdate applies multiple update operations in a single round-trip.
 // Each op updates the first document matching its filter.
-func (c *mongoCollection) BulkUpdate(ctx context.Context, ops []BulkUpdateOp) (UpdateResult, error) {
+func (c *mongoCollection) BulkUpdate(ctx context.Context, ops []UpdateSpec) (UpdateResult, error) {
 	models := make([]mongo.WriteModel, len(ops))
 	for i, op := range ops {
 		u, err := jsonToBSON(op.Update)

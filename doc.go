@@ -137,7 +137,7 @@
 // BulkUpdate and BulkDelete send multiple operations to MongoDB in a single
 // round-trip. Use InsertMany for bulk inserts.
 //
-//	res, err := col.BulkUpdate(ctx, []mongopher.BulkUpdateOp{
+//	res, err := col.BulkUpdate(ctx, []mongopher.UpdateSpec{
 //	    {Filter: filterAlice, Update: []byte(`{"$set":{"score":99}}`)},
 //	    {Filter: filterBob,   Update: []byte(`{"$set":{"score":88}}`)},
 //	})

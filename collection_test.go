@@ -1311,7 +1311,7 @@ func TestBulkUpdate(t *testing.T) {
 	filterAlice, _ := mongopher.FilterFromJSON([]byte(`{"name":"Alice"}`))
 	filterBob, _ := mongopher.FilterFromJSON([]byte(`{"name":"Bob"}`))
 
-	res, err := c.BulkUpdate(ctx, []mongopher.BulkUpdateOp{
+	res, err := c.BulkUpdate(ctx, []mongopher.UpdateSpec{
 		{Filter: filterAlice, Update: []byte(`{"$set":{"score":99}}`)},
 		{Filter: filterBob, Update: []byte(`{"$set":{"score":88}}`)},
 	})
@@ -1351,7 +1351,7 @@ func TestBulkUpdate(t *testing.T) {
 
 func TestBulkUpdate_InvalidJSON(t *testing.T) {
 	c := col(t)
-	_, err := c.BulkUpdate(context.Background(), []mongopher.BulkUpdateOp{
+	_, err := c.BulkUpdate(context.Background(), []mongopher.UpdateSpec{
 		{Filter: mongopher.EmptyFilter(), Update: []byte(`not json`)},
 	})
 	if !errors.Is(err, mongopher.ErrInvalidJSON) {
@@ -1364,7 +1364,7 @@ func TestBulkUpdate_NoMatch(t *testing.T) {
 	c := col(t)
 
 	filter, _ := mongopher.FilterFromJSON([]byte(`{"name":"nobody"}`))
-	res, err := c.BulkUpdate(ctx, []mongopher.BulkUpdateOp{
+	res, err := c.BulkUpdate(ctx, []mongopher.UpdateSpec{
 		{Filter: filter, Update: []byte(`{"$set":{"score":99}}`)},
 	})
 	if err != nil {
