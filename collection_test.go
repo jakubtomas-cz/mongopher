@@ -148,7 +148,7 @@ func TestUpdateOne(t *testing.T) {
 	}
 
 	filter, _ := mongopher.FilterFromJSON([]byte(`{"name":"Alice"}`))
-	res, err := c.UpdateOne(ctx, filter, []byte(`{"$set":{"age":31}}`))
+	res, err := c.UpdateOne(ctx, filter, mongopher.Set([]byte(`{"age":31}`)))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -208,7 +208,7 @@ func TestUpdateMany(t *testing.T) {
 	}
 
 	filter, _ := mongopher.FilterFromJSON([]byte(`{"role":"admin"}`))
-	res, err := c.UpdateMany(ctx, filter, []byte(`{"$set":{"score":99}}`))
+	res, err := c.UpdateMany(ctx, filter, mongopher.Set([]byte(`{"score":99}`)))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -471,7 +471,7 @@ func TestUpdateOne_NoMatch(t *testing.T) {
 	c := col(t)
 
 	filter, _ := mongopher.FilterFromJSON([]byte(`{"name":"nobody"}`))
-	res, err := c.UpdateOne(ctx, filter, []byte(`{"$set":{"age":1}}`))
+	res, err := c.UpdateOne(ctx, filter, mongopher.Set([]byte(`{"age":1}`)))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -603,7 +603,7 @@ func TestWithTransaction_MultiCollection(t *testing.T) {
 			return err
 		}
 		filter, _ := mongopher.FilterFromJSON([]byte(`{"sku":"ABC"}`))
-		_, err := inventory.UpdateOne(ctx, filter, []byte(`{"$inc":{"stock":-2}}`))
+		_, err := inventory.UpdateOne(ctx, filter, mongopher.Inc([]byte(`{"stock":-2}`)))
 		return err
 	})
 	if err != nil {
@@ -1364,7 +1364,7 @@ func TestUpdateOne_WithUpsert_NoMatch(t *testing.T) {
 	c := col(t)
 
 	filter, _ := mongopher.FilterFromJSON([]byte(`{"name":"Ghost"}`))
-	res, err := c.UpdateOne(ctx, filter, []byte(`{"$set":{"name":"Ghost","age":0}}`), mongopher.WithUpsert())
+	res, err := c.UpdateOne(ctx, filter, mongopher.Set([]byte(`{"name":"Ghost","age":0}`)), mongopher.WithUpsert())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1390,7 +1390,7 @@ func TestUpdateOne_WithUpsert_Match(t *testing.T) {
 	}
 
 	filter, _ := mongopher.FilterFromJSON([]byte(`{"name":"Alice"}`))
-	res, err := c.UpdateOne(ctx, filter, []byte(`{"$set":{"age":31}}`), mongopher.WithUpsert())
+	res, err := c.UpdateOne(ctx, filter, mongopher.Set([]byte(`{"age":31}`)), mongopher.WithUpsert())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1412,7 +1412,7 @@ func TestUpdateMany_WithUpsert_NoMatch(t *testing.T) {
 	c := col(t)
 
 	filter, _ := mongopher.FilterFromJSON([]byte(`{"role":"ghost"}`))
-	res, err := c.UpdateMany(ctx, filter, []byte(`{"$set":{"role":"ghost"}}`), mongopher.WithUpsert())
+	res, err := c.UpdateMany(ctx, filter, mongopher.Set([]byte(`{"role":"ghost"}`)), mongopher.WithUpsert())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1505,7 +1505,7 @@ func TestFindOneAndUpdate_ReturnBefore(t *testing.T) {
 	}
 
 	filter, _ := mongopher.FilterFromJSON([]byte(`{"name":"Alice"}`))
-	doc, err := c.FindOneAndUpdate(ctx, filter, []byte(`{"$set":{"age":31}}`))
+	doc, err := c.FindOneAndUpdate(ctx, filter, mongopher.Set([]byte(`{"age":31}`)))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1527,7 +1527,7 @@ func TestFindOneAndUpdate_ReturnAfter(t *testing.T) {
 	}
 
 	filter, _ := mongopher.FilterFromJSON([]byte(`{"name":"Alice"}`))
-	doc, err := c.FindOneAndUpdate(ctx, filter, []byte(`{"$set":{"age":31}}`), mongopher.WithReturnAfter())
+	doc, err := c.FindOneAndUpdate(ctx, filter, mongopher.Set([]byte(`{"age":31}`)), mongopher.WithReturnAfter())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1544,7 +1544,7 @@ func TestFindOneAndUpdate_NoMatch(t *testing.T) {
 	c := col(t)
 
 	filter, _ := mongopher.FilterFromJSON([]byte(`{"name":"nobody"}`))
-	_, err := c.FindOneAndUpdate(ctx, filter, []byte(`{"$set":{"age":1}}`))
+	_, err := c.FindOneAndUpdate(ctx, filter, mongopher.Set([]byte(`{"age":1}`)))
 	if !errors.Is(err, mongopher.ErrNoDocuments) {
 		t.Fatalf("expected ErrNoDocuments, got %v", err)
 	}
@@ -1664,8 +1664,8 @@ func TestBulkUpdate(t *testing.T) {
 	filterBob, _ := mongopher.FilterFromJSON([]byte(`{"name":"Bob"}`))
 
 	res, err := c.BulkUpdate(ctx, []mongopher.UpdateSpec{
-		{Filter: filterAlice, Update: []byte(`{"$set":{"score":99}}`)},
-		{Filter: filterBob, Update: []byte(`{"$set":{"score":88}}`)},
+		{Filter: filterAlice, Update: mongopher.Set([]byte(`{"score":99}`))},
+		{Filter: filterBob, Update: mongopher.Set([]byte(`{"score":88}`))},
 	})
 	if err != nil {
 		t.Fatal(err)

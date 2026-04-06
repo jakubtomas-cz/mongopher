@@ -103,23 +103,31 @@
 //
 // # Updating documents
 //
-// Update methods accept a standard MongoDB update document (e.g. {"$set":{...}}).
+// Use the update helpers to wrap any JSON object in a MongoDB operator:
 //
-//	filter, _ := mongopher.FilterFromJSON([]byte(`{"name":"Alice"}`))
-//	update := []byte(`{"$set":{"age":31}}`)
-//
-//	res, err := col.UpdateOne(ctx, filter, update)
+//	res, err := col.UpdateOne(ctx, filter, mongopher.Set([]byte(`{"age":31}`)))
+//	res, err := col.UpdateMany(ctx, filter, mongopher.Inc([]byte(`{"loginCount":1}`)))
 //	fmt.Println(res.MatchedCount, res.ModifiedCount)
 //
-//	res, err = col.UpdateMany(ctx, filter, update)
+// Available helpers: Set, Unset, Inc, Push, Pull, AddToSet, Rename.
+//
+// This is especially useful when forwarding a request body — the JSON passes
+// straight through without any wrapping ceremony:
+//
+//	body, _ := io.ReadAll(r.Body)
+//	res, err := col.UpdateOne(ctx, mongopher.FilterByID(id), mongopher.Set(body))
+//
+// For operators without a helper, pass the raw update document directly:
+//
+//	res, err := col.UpdateOne(ctx, filter, []byte(`{"$bit":{"flags":{"or":4}}}`))
 //
 // If no document matches, err is nil and MatchedCount is 0.
 // Check MatchedCount explicitly if you need to detect a no-op update.
 //
 // Pass WithUpsert to insert a new document when no match is found:
 //
-//	res, err := col.UpdateOne(ctx, filter, update, mongopher.WithUpsert())
-//	res, err = col.UpdateMany(ctx, filter, update, mongopher.WithUpsert())
+//	res, err := col.UpdateOne(ctx, filter, mongopher.Set([]byte(`{"role":"admin"}`)), mongopher.WithUpsert())
+//	res, err = col.UpdateMany(ctx, filter, mongopher.Set([]byte(`{"active":true}`)), mongopher.WithUpsert())
 //
 // # Replacing documents
 //
@@ -140,7 +148,7 @@
 // no document matches the filter.
 //
 //	// Returns the document before the update (default)
-//	doc, err := col.FindOneAndUpdate(ctx, filter, []byte(`{"$set":{"age":31}}`))
+//	doc, err := col.FindOneAndUpdate(ctx, filter, mongopher.Set([]byte(`{"age":31}`)))
 //
 //	// Returns the document after the update
 //	doc, err = col.FindOneAndUpdate(ctx, filter, update, mongopher.WithReturnAfter())
@@ -161,8 +169,8 @@
 // round-trip. Use InsertMany for bulk inserts.
 //
 //	res, err := col.BulkUpdate(ctx, []mongopher.UpdateSpec{
-//	    {Filter: filterAlice, Update: []byte(`{"$set":{"score":99}}`)},
-//	    {Filter: filterBob,   Update: []byte(`{"$set":{"score":88}}`)},
+//	    {Filter: filterAlice, Update: mongopher.Set([]byte(`{"score":99}`))},
+//	    {Filter: filterBob,   Update: mongopher.Set([]byte(`{"score":88}`))},
 //	})
 //	fmt.Println(res.MatchedCount, res.ModifiedCount)
 //
@@ -263,7 +271,7 @@
 //	        return err
 //	    }
 //	    filter, _ := mongopher.FilterFromJSON([]byte(`{"sku":"ABC"}`))
-//	    _, err := inventory.UpdateOne(ctx, filter, []byte(`{"$inc":{"stock":-1}}`))
+//	    _, err := inventory.UpdateOne(ctx, filter, mongopher.Inc([]byte(`{"stock":-1}`)))
 //	    return err
 //	})
 //	if errors.Is(err, mongopher.ErrTransactionsNotSupported) {

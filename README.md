@@ -12,9 +12,11 @@ Pass JSON in, get JSON back. No struct tags, no code generation, no ORM ceremony
 - Full document replacement with `ReplaceOne`
 - Upsert support on `UpdateOne`, `UpdateMany`, and `ReplaceOne`
 - Typed filter helpers (`Eq`, `Ne`, `Gt`, `In`, `Exists`, `And`, ...) with raw JSON fallback
+- Update operator helpers (`Set`, `Inc`, `Push`, ...) — wrap any JSON body in a MongoDB operator, no string construction needed
 - Sorting, pagination, and multi-field ordering
 - ObjectIDs as plain hex strings — no Extended JSON noise
 - Thin wrapper over the official MongoDB Go driver — no magic, full driver access when needed
+- Thoroughly unit tested against a real MongoDB instance
 
 ## Installation
 
@@ -129,8 +131,7 @@ docs, err := col.Find(ctx, mongopher.And(
     mongopher.Gte("age", 18),
 ))
 
-res, err := col.UpdateMany(ctx, mongopher.In("role", "admin", "owner"),
-    []byte(`{"$set":{"reviewed":true}}`))
+res, err := col.UpdateMany(ctx, mongopher.In("role", "admin", "owner"), mongopher.Set([]byte(`{"reviewed":true}`)))
 
 res, err := col.DeleteMany(ctx, mongopher.Exists("deletedAt", true))
 ```
@@ -226,26 +227,38 @@ docs, err := col.Find(ctx, filter,
 
 ### Update
 
-Update documents use standard MongoDB update operators (`$set`, `$inc`, `$push`, etc.).
+Use the update helpers to wrap any JSON object in a MongoDB operator — no manual string construction needed:
 
 ```go
-// Update the first matching document
-res, err := col.UpdateOne(ctx, filter, []byte(`{"$set":{"age":31}}`))
+res, err := col.UpdateOne(ctx, filter, mongopher.Set([]byte(`{"age":31}`)))
+res, err := col.UpdateMany(ctx, filter, mongopher.Inc([]byte(`{"loginCount":1}`)))
 fmt.Println(res.MatchedCount, res.ModifiedCount)
-
-// Update all matching documents
-res, err := col.UpdateMany(ctx, filter, []byte(`{"$inc":{"loginCount":1}}`))
 ```
 
-If no document matches the filter, `err` is `nil` and `MatchedCount` will be `0`. No error is returned for a no-op update — check `MatchedCount` explicitly if you need to detect that case.
+Available helpers: `Set`, `Unset`, `Inc`, `Push`, `Pull`, `AddToSet`, `Rename`.
+
+This pattern is especially useful when the JSON comes from an HTTP request body — it passes straight through without any wrapping ceremony:
+
+```go
+body, _ := io.ReadAll(r.Body)
+res, err := col.UpdateOne(ctx, mongopher.FilterByID(id), mongopher.Set(body))
+```
+
+If you need an operator that has no helper, pass the raw update document directly:
+
+```go
+res, err := col.UpdateOne(ctx, filter, []byte(`{"$bit":{"flags":{"or":4}}}`))
+```
+
+If no document matches, `err` is `nil` and `MatchedCount` will be `0`. No error is returned for a no-op update — check `MatchedCount` explicitly if you need to detect that case.
 
 #### Upsert
 
 Pass `WithUpsert()` to insert a new document when no match is found:
 
 ```go
-res, err := col.UpdateOne(ctx, filter, []byte(`{"$set":{"role":"admin"}}`), mongopher.WithUpsert())
-res, err := col.UpdateMany(ctx, filter, []byte(`{"$set":{"active":true}}`), mongopher.WithUpsert())
+res, err := col.UpdateOne(ctx, filter, mongopher.Set([]byte(`{"role":"admin"}`)), mongopher.WithUpsert())
+res, err := col.UpdateMany(ctx, filter, mongopher.Set([]byte(`{"active":true}`)), mongopher.WithUpsert())
 ```
 
 ### Replace
@@ -269,10 +282,10 @@ res, err := col.ReplaceOne(ctx, filter, []byte(`{"name":"Alice","age":31}`), mon
 
 ```go
 // Returns the document before the update (default)
-doc, err := col.FindOneAndUpdate(ctx, filter, []byte(`{"$set":{"age":31}}`))
+doc, err := col.FindOneAndUpdate(ctx, filter, mongopher.Set([]byte(`{"age":31}`)))
 
 // Returns the document after the update
-doc, err := col.FindOneAndUpdate(ctx, filter, []byte(`{"$set":{"age":31}}`), mongopher.WithReturnAfter())
+doc, err := col.FindOneAndUpdate(ctx, filter, mongopher.Set([]byte(`{"age":31}`)), mongopher.WithReturnAfter())
 
 // Returns the deleted document
 doc, err := col.FindOneAndDelete(ctx, filter)
@@ -298,8 +311,8 @@ res, err := col.DeleteMany(ctx, filter)
 ```go
 // Update multiple documents, each with its own filter
 res, err := col.BulkUpdate(ctx, []mongopher.UpdateSpec{
-    {Filter: filterAlice, Update: []byte(`{"$set":{"score":99}}`)},
-    {Filter: filterBob,   Update: []byte(`{"$set":{"score":88}}`)},
+    {Filter: filterAlice, Update: mongopher.Set([]byte(`{"score":99}`))},
+    {Filter: filterBob,   Update: mongopher.Set([]byte(`{"score":88}`))},
 })
 fmt.Println(res.MatchedCount, res.ModifiedCount)
 
@@ -426,7 +439,7 @@ err := client.WithTransaction(ctx, func(ctx context.Context) error {
         return err // triggers rollback
     }
     filter, _ := mongopher.FilterFromJSON([]byte(`{"sku":"ABC"}`))
-    _, err := inventory.UpdateOne(ctx, filter, []byte(`{"$inc":{"stock":-1}}`))
+    _, err := inventory.UpdateOne(ctx, filter, mongopher.Inc([]byte(`{"stock":-1}`)))
     return err
 })
 ```
@@ -487,7 +500,7 @@ doc, _ := col.FindOne(ctx, mongopher.EmptyFilter())
 // doc contains {"_id":"507f1f77...","name":"Alice"}
 
 filter, _ := mongopher.FilterFromJSON([]byte(`{"_id":"507f1f77..."}`))
-col.UpdateOne(ctx, filter, []byte(`{"$set":{"name":"Bob"}}`))
+col.UpdateOne(ctx, filter, mongopher.Set([]byte(`{"name":"Bob"}`)))
 ```
 
 ## Error handling
