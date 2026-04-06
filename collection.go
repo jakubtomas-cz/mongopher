@@ -32,6 +32,7 @@ type Collection interface {
 	ListIndexes(ctx context.Context) ([][]byte, error)
 	Drop(ctx context.Context) error
 	WithTransaction(ctx context.Context, fn func(ctx context.Context) error) error
+	Watch(ctx context.Context, opts ...WatchOption) (ChangeStream, error)
 }
 
 // mongoCollection wraps a mongo.Collection and implements Collection.
@@ -502,6 +503,34 @@ func (c *mongoCollection) Drop(ctx context.Context) error {
 // Returns ErrTransactionsNotSupported if the instance is not a replica set or sharded cluster.
 func (c *mongoCollection) WithTransaction(ctx context.Context, fn func(ctx context.Context) error) error {
 	return runWithTransaction(ctx, c.inner.Database().Client(), fn)
+}
+
+// Watch opens a change stream on the collection.
+func (c *mongoCollection) Watch(ctx context.Context, opts ...WatchOption) (ChangeStream, error) {
+	wo := &watchOptions{}
+	for _, o := range opts {
+		o(wo)
+	}
+
+	pipeline := bson.A{}
+	if len(wo.operationTypes) > 0 {
+		types := make(bson.A, len(wo.operationTypes))
+		for i, t := range wo.operationTypes {
+			types[i] = t
+		}
+		pipeline = append(pipeline, bson.D{{Key: "$match", Value: bson.D{{Key: "operationType", Value: bson.D{{Key: "$in", Value: types}}}}}})
+	}
+
+	streamOpts := options.ChangeStream()
+	if wo.fullDocument {
+		streamOpts.SetFullDocument(options.UpdateLookup)
+	}
+
+	cs, err := c.inner.Watch(ctx, pipeline, streamOpts)
+	if err != nil {
+		return nil, err
+	}
+	return &mongoChangeStream{inner: cs}, nil
 }
 
 // objectIDToString converts a MongoDB ObjectID (or any _id type) to its hex string.

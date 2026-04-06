@@ -244,6 +244,43 @@
 // Common stages: $match (filter), $project (reshape), $group (summarise),
 // $sort, $limit, $skip, $lookup (join), $unwind (flatten arrays).
 //
+// # Change streams
+//
+// Watch opens a change stream on the collection and returns an iterator over
+// ChangeEvent values. Change streams require a replica set or sharded cluster.
+//
+//	cs, err := col.Watch(ctx)
+//	if err != nil {
+//	    log.Fatal(err)
+//	}
+//	defer cs.Close(ctx)
+//
+//	for cs.Next(ctx) {
+//	    ev, err := cs.Event()
+//	    if err != nil {
+//	        log.Fatal(err)
+//	    }
+//	    fmt.Println(ev.OperationType, ev.DocumentID)
+//	    fmt.Println(string(ev.Document))
+//	}
+//
+// ChangeEvent.OperationType is one of: "insert", "update", "replace",
+// "delete", "drop", "invalidate".
+// ChangeEvent.Document is nil for delete/drop/invalidate events and for
+// update events when WithFullDocument is not set.
+// ChangeEvent.DocumentID is empty for non-document events (drop, invalidate).
+//
+// Watch accepts options:
+//
+//	// Include the full document on update events
+//	cs, err := col.Watch(ctx, mongopher.WithFullDocument())
+//
+//	// Filter to specific operation types
+//	cs, err := col.Watch(ctx, mongopher.WithOperationTypes("insert", "delete"))
+//
+// cs.Next(ctx) blocks until an event arrives or the context is done —
+// cancel the context to stop the stream.
+//
 // # Transactions
 //
 // WithTransaction runs fn inside an ACID transaction. It is available on both

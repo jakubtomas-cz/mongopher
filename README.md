@@ -15,6 +15,7 @@ Pass JSON in, get JSON back. No struct tags, no code generation, no ORM ceremony
 - Update operator helpers (`Set`, `Inc`, `Push`, ...) — wrap any JSON body in a MongoDB operator, no string construction needed
 - Sorting, pagination, and multi-field ordering
 - ObjectIDs as plain hex strings — no Extended JSON noise
+- Change streams for real-time insert/update/delete notifications
 - Thin wrapper over the official MongoDB Go driver — no magic, full driver access when needed
 - Thoroughly unit tested against a real MongoDB instance
 
@@ -484,6 +485,53 @@ col.FindOne(ctx, filter)                        // delegates to the underlying c
 ```
 
 Common use cases: automatic timestamps, audit logging, input validation, cache invalidation, instrumentation.
+
+## Change streams
+
+`Watch` opens a change stream on a collection and returns an iterator over `ChangeEvent` values. Change streams require a replica set or sharded cluster.
+
+```go
+cs, err := col.Watch(ctx)
+if err != nil {
+    log.Fatal(err)
+}
+defer cs.Close(ctx)
+
+for cs.Next(ctx) {
+    ev, err := cs.Event()
+    if err != nil {
+        log.Fatal(err)
+    }
+    fmt.Println(ev.OperationType, ev.DocumentID)
+    fmt.Println(string(ev.Document))
+}
+```
+
+`ChangeEvent` fields:
+
+| Field | Description |
+|---|---|
+| `OperationType` | `"insert"`, `"update"`, `"replace"`, `"delete"`, `"drop"`, `"invalidate"` |
+| `DocumentID` | Hex ObjectID of the affected document; empty for non-document events (`drop`, `invalidate`) |
+| `Document` | Full document JSON; `nil` for `delete`/`drop`/`invalidate` events and for `update` events without `WithFullDocument` |
+
+`Watch` accepts options:
+
+```go
+// Include the full document on update events (default: only metadata is sent)
+cs, err := col.Watch(ctx, mongopher.WithFullDocument())
+
+// Filter to specific operation types
+cs, err := col.Watch(ctx, mongopher.WithOperationTypes("insert", "delete"))
+
+// Combine options
+cs, err := col.Watch(ctx,
+    mongopher.WithFullDocument(),
+    mongopher.WithOperationTypes("insert", "update", "replace"),
+)
+```
+
+`cs.Next(ctx)` blocks until an event arrives or the context is done — cancel the context to stop the stream.
 
 ## The `_id` field
 
