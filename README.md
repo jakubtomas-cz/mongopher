@@ -94,6 +94,9 @@ filter, err := mongopher.FilterFromJSON([]byte(`{"role":"admin","age":{"$gte":18
 
 // Match all documents
 filter := mongopher.EmptyFilter()
+
+// Match by _id
+filter, err := mongopher.FilterByID("user-42")
 ```
 
 Any valid MongoDB query expression works — operators like `$gt`, `$in`, `$or`, dot notation for nested fields, etc.
@@ -442,6 +445,16 @@ MongoDB ObjectIDs are returned as plain hex strings, not as Extended JSON object
 
 ```json
 {"_id":"507f1f77bcf86cd799439011","name":"Alice"}
+```
+
+Filters round-trip correctly — a hex string `_id` is automatically coerced back to an ObjectID when passed to `FilterFromJSON` or `FilterByID`, so the typical fetch-then-filter pattern works without any manual conversion:
+
+```go
+doc, _ := col.FindOne(ctx, mongopher.EmptyFilter())
+// doc contains {"_id":"507f1f77...","name":"Alice"}
+
+filter, _ := mongopher.FilterFromJSON([]byte(`{"_id":"507f1f77..."}`))
+col.UpdateOne(ctx, filter, []byte(`{"$set":{"name":"Bob"}}`))
 ```
 
 ## Error handling

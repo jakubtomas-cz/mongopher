@@ -766,6 +766,102 @@ func TestFilterFromJSON_Invalid(t *testing.T) {
 	}
 }
 
+func TestFilterFromJSON_ObjectIDCoercion(t *testing.T) {
+	ctx := context.Background()
+	c := col(t)
+
+	// Insert without custom _id so MongoDB assigns an ObjectID.
+	res, err := c.InsertOne(ctx, []byte(`{"name":"Alice"}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Build a filter from the hex string returned by InsertOne, as a user
+	// would after receiving a document over HTTP.
+	filter, err := mongopher.FilterFromJSON([]byte(`{"_id":"` + res.InsertedID + `"}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	doc, err := c.FindOne(ctx, filter)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var result map[string]any
+	json.Unmarshal(doc, &result)
+	if result["name"] != "Alice" {
+		t.Fatalf("expected name=Alice, got %v", result["name"])
+	}
+}
+
+func TestFilterFromJSON_CustomStringID(t *testing.T) {
+	ctx := context.Background()
+	c := col(t)
+
+	_, err := c.InsertOne(ctx, []byte(`{"_id":"user-42","name":"Bob"}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	filter, err := mongopher.FilterFromJSON([]byte(`{"_id":"user-42"}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	doc, err := c.FindOne(ctx, filter)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var result map[string]any
+	json.Unmarshal(doc, &result)
+	if result["name"] != "Bob" {
+		t.Fatalf("expected name=Bob, got %v", result["name"])
+	}
+}
+
+func TestFilterByID(t *testing.T) {
+	ctx := context.Background()
+	c := col(t)
+
+	// custom string _id
+	res, err := c.InsertOne(ctx, []byte(`{"_id":"user-42","name":"Alice"}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	filter, err := mongopher.FilterByID(res.InsertedID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	doc, err := c.FindOne(ctx, filter)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var result map[string]any
+	json.Unmarshal(doc, &result)
+	if result["name"] != "Alice" {
+		t.Fatalf("expected name=Alice, got %v", result["name"])
+	}
+
+	// MongoDB-generated ObjectID
+	res, err = c.InsertOne(ctx, []byte(`{"name":"Bob"}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	filter, err = mongopher.FilterByID(res.InsertedID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	doc, err = c.FindOne(ctx, filter)
+	if err != nil {
+		t.Fatal(err)
+	}
+	json.Unmarshal(doc, &result)
+	if result["name"] != "Bob" {
+		t.Fatalf("expected name=Bob, got %v", result["name"])
+	}
+}
+
+
 func TestIDFlattening(t *testing.T) {
 	ctx := context.Background()
 	c := col(t)

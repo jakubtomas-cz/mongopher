@@ -53,9 +53,12 @@
 // # Querying
 //
 // Filters are built from JSON and passed to all read/write/delete operations.
-// Use EmptyFilter to match all documents.
+// Use EmptyFilter to match all documents, or FilterByID to look up by _id.
 //
 //	filter, err := mongopher.FilterFromJSON([]byte(`{"name":"Alice"}`))
+//
+//	// Filter by _id:
+//	filter, err := mongopher.FilterByID("user-42")
 //
 //	doc, err := col.FindOne(ctx, filter)  // returns []byte JSON, or ErrNoDocuments
 //
@@ -283,6 +286,10 @@
 // A document stored without an explicit _id gets one assigned by MongoDB;
 // the returned JSON will contain `"_id":"507f1f77bcf86cd799439011"`.
 // You may also supply your own _id in the insert payload.
+//
+// Filters round-trip correctly — a hex string _id passed to FilterFromJSON
+// or FilterByID is automatically coerced back to a BSON ObjectID, so the
+// typical fetch-then-filter pattern works without any manual conversion.
 //
 // # Number types
 //
