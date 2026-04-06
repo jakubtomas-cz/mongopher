@@ -622,6 +622,50 @@ func TestWithTransaction_MultiCollection(t *testing.T) {
 	}
 }
 
+func TestWithTransaction_Collection_Commit(t *testing.T) {
+	ctx := context.Background()
+	c := col(t)
+
+	err := c.WithTransaction(ctx, func(ctx context.Context) error {
+		_, err := c.InsertOne(ctx, []byte(`{"name":"Alice"}`))
+		return err
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	count, err := c.CountDocuments(ctx, mongopher.EmptyFilter())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if count != 1 {
+		t.Fatalf("expected 1 document after commit, got %d", count)
+	}
+}
+
+func TestWithTransaction_Collection_Rollback(t *testing.T) {
+	ctx := context.Background()
+	c := col(t)
+
+	err := c.WithTransaction(ctx, func(ctx context.Context) error {
+		if _, err := c.InsertOne(ctx, []byte(`{"name":"Alice"}`)); err != nil {
+			return err
+		}
+		return errors.New("intentional rollback")
+	})
+	if err == nil {
+		t.Fatal("expected error from transaction, got nil")
+	}
+
+	count, err := c.CountDocuments(ctx, mongopher.EmptyFilter())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if count != 0 {
+		t.Fatalf("expected 0 documents after rollback, got %d", count)
+	}
+}
+
 func TestConnect_WithNoAdditionalOpts(t *testing.T) {
 	ctx := context.Background()
 	client, err := mongopher.Connect(ctx, testURI, testDB)

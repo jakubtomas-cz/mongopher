@@ -215,11 +215,25 @@
 //
 // # Transactions
 //
-// WithTransaction runs fn inside a multi-document ACID transaction.
+// WithTransaction runs fn inside an ACID transaction. It is available on both
+// Collection (single-collection convenience) and Client (multi-collection).
 // The ctx passed to fn must be forwarded to all collection operations
 // so they participate in the transaction. Returning a non-nil error
 // aborts the transaction; returning nil commits it.
 // Returns ErrTransactionsNotSupported on standalone instances.
+//
+// Single-collection transaction via Collection:
+//
+//	err := col.WithTransaction(ctx, func(ctx context.Context) error {
+//	    _, err := col.InsertOne(ctx, docJSON)
+//	    return err
+//	})
+//
+// col.WithTransaction also works for multi-collection transactions — what ties
+// operations to a transaction is the ctx, not which object WithTransaction is
+// called on. client.WithTransaction is simply more explicit about the intent.
+//
+// Multi-collection transaction via Client:
 //
 //	err := client.WithTransaction(ctx, func(ctx context.Context) error {
 //	    if _, err := orders.InsertOne(ctx, orderJSON); err != nil {

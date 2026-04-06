@@ -371,7 +371,18 @@ for _, doc := range docs {
 
 ## Transactions
 
-`WithTransaction` runs a function inside a multi-document ACID transaction. The `ctx` received in the callback must be forwarded to all collection operations so they participate in the same transaction. Returning a non-nil error aborts; returning nil commits.
+`WithTransaction` runs a function inside an ACID transaction and is available on both `Collection` and `Client`. The `ctx` received in the callback must be forwarded to all collection operations so they participate in the same transaction. Returning a non-nil error aborts; returning nil commits.
+
+**Single-collection** — call it on the collection directly:
+
+```go
+err := col.WithTransaction(ctx, func(ctx context.Context) error {
+    _, err := col.InsertOne(ctx, docJSON)
+    return err
+})
+```
+
+**Multi-collection** — call it on the client and pass the ctx to each collection:
 
 ```go
 err := client.WithTransaction(ctx, func(ctx context.Context) error {
@@ -384,10 +395,12 @@ err := client.WithTransaction(ctx, func(ctx context.Context) error {
 })
 ```
 
+> **Note:** `col.WithTransaction` works for multi-collection transactions too — what ties operations to a transaction is the `ctx`, not which object you call `WithTransaction` on. `client.WithTransaction` is simply more explicit about the intent.
+
 Transactions require a replica set or sharded cluster. On a standalone instance, `WithTransaction` returns `ErrTransactionsNotSupported`:
 
 ```go
-err := client.WithTransaction(ctx, fn)
+err := col.WithTransaction(ctx, fn)
 if errors.Is(err, mongopher.ErrTransactionsNotSupported) {
     // instance is not a replica set or sharded cluster
 }

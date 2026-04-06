@@ -35,7 +35,11 @@ func Connect(ctx context.Context, uri, dbName string, opts ...*options.ClientOpt
 // from fn aborts the transaction; returning nil commits it.
 // Returns ErrTransactionsNotSupported if the instance is not a replica set or sharded cluster.
 func (c *Client) WithTransaction(ctx context.Context, fn func(ctx context.Context) error) error {
-	session, err := c.inner.StartSession()
+	return runWithTransaction(ctx, c.inner, fn)
+}
+
+func runWithTransaction(ctx context.Context, client *mongo.Client, fn func(ctx context.Context) error) error {
+	session, err := client.StartSession()
 	if err != nil {
 		return err
 	}

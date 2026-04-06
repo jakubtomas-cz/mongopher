@@ -31,6 +31,7 @@ type Collection interface {
 	DropIndex(ctx context.Context, name string) error
 	ListIndexes(ctx context.Context) ([][]byte, error)
 	Drop(ctx context.Context) error
+	WithTransaction(ctx context.Context, fn func(ctx context.Context) error) error
 }
 
 // mongoCollection wraps a mongo.Collection and implements Collection.
@@ -492,6 +493,15 @@ func (c *mongoCollection) ListIndexes(ctx context.Context) ([][]byte, error) {
 // Drop removes the collection from the database.
 func (c *mongoCollection) Drop(ctx context.Context) error {
 	return c.inner.Drop(ctx)
+}
+
+// WithTransaction runs fn inside a single-collection ACID transaction.
+// The ctx passed to fn must be forwarded to all collection operations
+// so they participate in the transaction. Returning a non-nil error
+// from fn aborts the transaction; returning nil commits it.
+// Returns ErrTransactionsNotSupported if the instance is not a replica set or sharded cluster.
+func (c *mongoCollection) WithTransaction(ctx context.Context, fn func(ctx context.Context) error) error {
+	return runWithTransaction(ctx, c.inner.Database().Client(), fn)
 }
 
 // objectIDToString converts a MongoDB ObjectID (or any _id type) to its hex string.
