@@ -274,18 +274,40 @@ Permanently removes the collection and all its documents. This operation is irre
 
 ## Indexes
 
+`CreateIndex` accepts one or more `IndexKey` values — a single key for a single-field index, multiple for a compound index.
+
 ```go
-// Simple index
-name, err := col.CreateIndex(ctx, "email", mongopher.ASC)
+// Single-field index
+name, err := col.CreateIndex(ctx, []mongopher.IndexKey{
+    {Field: "email", Direction: mongopher.ASC},
+})
 
 // Unique index
-name, err := col.CreateIndex(ctx, "email", mongopher.ASC, mongopher.WithUnique())
+name, err := col.CreateIndex(ctx, []mongopher.IndexKey{
+    {Field: "email", Direction: mongopher.ASC},
+}, mongopher.WithUnique())
+
+// Compound index
+name, err := col.CreateIndex(ctx, []mongopher.IndexKey{
+    {Field: "role", Direction: mongopher.ASC},
+    {Field: "createdAt", Direction: mongopher.DESC},
+})
+
+// Compound unique index
+name, err := col.CreateIndex(ctx, []mongopher.IndexKey{
+    {Field: "org", Direction: mongopher.ASC},
+    {Field: "email", Direction: mongopher.ASC},
+}, mongopher.WithUnique())
 
 // TTL index — documents expire after 3600 seconds
-name, err := col.CreateIndex(ctx, "createdAt", mongopher.ASC, mongopher.WithTTL(3600))
+name, err := col.CreateIndex(ctx, []mongopher.IndexKey{
+    {Field: "createdAt", Direction: mongopher.ASC},
+}, mongopher.WithTTL(3600))
 
 // Sparse index — skips documents missing the field
-name, err := col.CreateIndex(ctx, "phone", mongopher.ASC, mongopher.WithSparse())
+name, err := col.CreateIndex(ctx, []mongopher.IndexKey{
+    {Field: "phone", Direction: mongopher.ASC},
+}, mongopher.WithSparse())
 
 // Drop an index by name
 err = col.DropIndex(ctx, name)

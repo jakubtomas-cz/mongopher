@@ -361,19 +361,28 @@ func WithSparse() IndexOption { return func(o *indexOptions) { o.sparse = true }
 // WithTTL creates a TTL index that automatically deletes documents after the given number of seconds.
 func WithTTL(seconds int32) IndexOption { return func(o *indexOptions) { o.ttl = &seconds } }
 
-// CreateIndex creates an index on a single field and returns the index name.
-// ascending=true for ASC, false for DESC.
-func (c *Collection) CreateIndex(ctx context.Context, field string, ascending SortDirection, opts ...IndexOption) (string, error) {
+// IndexKey specifies a field and direction for an index.
+type IndexKey struct {
+	Field     string
+	Direction SortDirection
+}
+
+// CreateIndex creates an index on one or more fields and returns the index name.
+// Pass a single IndexKey for a single-field index, or multiple for a compound index.
+func (c *Collection) CreateIndex(ctx context.Context, keys []IndexKey, opts ...IndexOption) (string, error) {
 	io := &indexOptions{}
 	for _, o := range opts {
 		o(io)
 	}
 
-	dir := 1
-	if !ascending {
-		dir = -1
+	bsonKeys := make(bson.D, len(keys))
+	for i, k := range keys {
+		dir := 1
+		if !k.Direction {
+			dir = -1
+		}
+		bsonKeys[i] = bson.E{Key: k.Field, Value: dir}
 	}
-	keys := bson.D{{Key: field, Value: dir}}
 
 	indexOpts := options.Index()
 	if io.unique {
@@ -386,7 +395,7 @@ func (c *Collection) CreateIndex(ctx context.Context, field string, ascending So
 		indexOpts.SetExpireAfterSeconds(*io.ttl)
 	}
 
-	return c.inner.Indexes().CreateOne(ctx, mongo.IndexModel{Keys: keys, Options: indexOpts})
+	return c.inner.Indexes().CreateOne(ctx, mongo.IndexModel{Keys: bsonKeys, Options: indexOpts})
 }
 
 // DropIndex drops an index by name.

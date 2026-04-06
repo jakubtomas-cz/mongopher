@@ -140,17 +140,30 @@
 //
 // # Indexes
 //
-// CreateIndex creates a single-field index and returns its name.
+// CreateIndex creates an index on one or more fields and returns its name.
+// Pass a single IndexKey for a single-field index, multiple for a compound index.
 // Use IndexOption values to configure uniqueness, sparseness, or TTL.
 //
-//	// Simple index
-//	name, err := col.CreateIndex(ctx, "email", mongopher.ASC)
+//	// Single-field index
+//	name, err := col.CreateIndex(ctx, []mongopher.IndexKey{
+//	    {Field: "email", Direction: mongopher.ASC},
+//	})
+//
+//	// Compound index
+//	name, err := col.CreateIndex(ctx, []mongopher.IndexKey{
+//	    {Field: "role", Direction: mongopher.ASC},
+//	    {Field: "createdAt", Direction: mongopher.DESC},
+//	})
 //
 //	// Unique index
-//	name, err := col.CreateIndex(ctx, "email", mongopher.ASC, mongopher.WithUnique())
+//	name, err := col.CreateIndex(ctx, []mongopher.IndexKey{
+//	    {Field: "email", Direction: mongopher.ASC},
+//	}, mongopher.WithUnique())
 //
 //	// TTL index — documents expire after 3600 seconds
-//	name, err := col.CreateIndex(ctx, "createdAt", mongopher.ASC, mongopher.WithTTL(3600))
+//	name, err := col.CreateIndex(ctx, []mongopher.IndexKey{
+//	    {Field: "createdAt", Direction: mongopher.ASC},
+//	}, mongopher.WithTTL(3600))
 //
 //	// Drop an index by name
 //	err = col.DropIndex(ctx, name)

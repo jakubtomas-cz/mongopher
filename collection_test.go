@@ -860,7 +860,7 @@ func TestCreateIndex(t *testing.T) {
 	ctx := context.Background()
 	c := col(t)
 
-	name, err := c.CreateIndex(ctx, "email", mongopher.ASC)
+	name, err := c.CreateIndex(ctx, []mongopher.IndexKey{{Field: "email", Direction: mongopher.ASC}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -873,7 +873,7 @@ func TestCreateIndex_Unique(t *testing.T) {
 	ctx := context.Background()
 	c := col(t)
 
-	_, err := c.CreateIndex(ctx, "email", mongopher.ASC, mongopher.WithUnique())
+	_, err := c.CreateIndex(ctx, []mongopher.IndexKey{{Field: "email", Direction: mongopher.ASC}}, mongopher.WithUnique())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -893,12 +893,54 @@ func TestCreateIndex_Desc(t *testing.T) {
 	ctx := context.Background()
 	c := col(t)
 
-	name, err := c.CreateIndex(ctx, "createdAt", mongopher.DESC)
+	name, err := c.CreateIndex(ctx, []mongopher.IndexKey{{Field: "createdAt", Direction: mongopher.DESC}})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if name == "" {
 		t.Fatal("expected non-empty index name")
+	}
+}
+
+func TestCreateIndex_Compound(t *testing.T) {
+	ctx := context.Background()
+	c := col(t)
+
+	name, err := c.CreateIndex(ctx, []mongopher.IndexKey{
+		{Field: "role", Direction: mongopher.ASC},
+		{Field: "createdAt", Direction: mongopher.DESC},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if name == "" {
+		t.Fatal("expected non-empty index name")
+	}
+}
+
+func TestCreateIndex_CompoundUnique(t *testing.T) {
+	ctx := context.Background()
+	c := col(t)
+
+	_, err := c.CreateIndex(ctx, []mongopher.IndexKey{
+		{Field: "org", Direction: mongopher.ASC},
+		{Field: "email", Direction: mongopher.ASC},
+	}, mongopher.WithUnique())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := c.InsertOne(ctx, []byte(`{"org":"acme","email":"alice@example.com"}`)); err != nil {
+		t.Fatal(err)
+	}
+	// Same org+email must fail
+	_, err = c.InsertOne(ctx, []byte(`{"org":"acme","email":"alice@example.com"}`))
+	if err == nil {
+		t.Fatal("expected duplicate key error, got nil")
+	}
+	// Different org same email must succeed
+	if _, err := c.InsertOne(ctx, []byte(`{"org":"globex","email":"alice@example.com"}`)); err != nil {
+		t.Fatal(err)
 	}
 }
 
@@ -911,7 +953,7 @@ func TestListIndexes(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if _, err := c.CreateIndex(ctx, "email", mongopher.ASC, mongopher.WithUnique()); err != nil {
+	if _, err := c.CreateIndex(ctx, []mongopher.IndexKey{{Field: "email", Direction: mongopher.ASC}}, mongopher.WithUnique()); err != nil {
 		t.Fatal(err)
 	}
 
@@ -942,7 +984,7 @@ func TestDropIndex(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	name, err := c.CreateIndex(ctx, "email", mongopher.ASC)
+	name, err := c.CreateIndex(ctx, []mongopher.IndexKey{{Field: "email", Direction: mongopher.ASC}})
 	if err != nil {
 		t.Fatal(err)
 	}
