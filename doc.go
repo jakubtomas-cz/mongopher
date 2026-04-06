@@ -52,15 +52,35 @@
 //
 // # Querying
 //
-// Filters are built from JSON and passed to all read/write/delete operations.
-// Use EmptyFilter to match all documents, or FilterByID to look up by _id.
+// Filters are built with typed helpers or from raw JSON and passed to all
+// read/write/delete operations.
 //
+//	// Typed helpers
+//	mongopher.Eq("status", "active")
+//	mongopher.Ne("status", "deleted")
+//	mongopher.Gt("age", 18)
+//	mongopher.Gte("age", 18)
+//	mongopher.Lt("age", 65)
+//	mongopher.Lte("age", 65)
+//	mongopher.In("role", "admin", "owner")
+//	mongopher.Exists("deletedAt", false)
+//
+//	// Combine conditions
+//	mongopher.And(mongopher.Eq("status", "active"), mongopher.Gt("age", 18))
+//
+//	// Raw JSON for anything else ($or, $regex, dot notation, ...)
 //	filter, err := mongopher.FilterFromJSON([]byte(`{"name":"Alice"}`))
 //
 //	// Filter by _id:
 //	filter, err := mongopher.FilterByID("user-42")
 //
-//	doc, err := col.FindOne(ctx, filter)  // returns []byte JSON, or ErrNoDocuments
+//	// Filters are passed directly to any read, write, or delete operation:
+//	doc, err := col.FindOne(ctx, mongopher.Eq("email", "alice@example.com"))
+//
+//	docs, err := col.Find(ctx, mongopher.And(
+//	    mongopher.Eq("status", "active"),
+//	    mongopher.Gte("age", 18),
+//	))
 //
 //	docs, err := col.Find(ctx, mongopher.EmptyFilter(),
 //	    mongopher.WithLimit(10),

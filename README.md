@@ -11,6 +11,7 @@ Pass JSON in, get JSON back. No struct tags, no code generation, no ORM ceremony
 - Atomic find-and-modify: `FindOneAndUpdate`, `FindOneAndDelete`
 - Full document replacement with `ReplaceOne`
 - Upsert support on `UpdateOne`, `UpdateMany`, and `ReplaceOne`
+- Typed filter helpers (`Eq`, `Ne`, `Gt`, `In`, `Exists`, `And`, ...) with raw JSON fallback
 - Sorting, pagination, and multi-field ordering
 - ObjectIDs as plain hex strings — no Extended JSON noise
 - Thin wrapper over the official MongoDB Go driver — no magic, full driver access when needed
@@ -43,8 +44,7 @@ res, err := users.InsertOne(ctx, []byte(`{"name":"Alice","age":30}`))
 fmt.Println(res.InsertedID) // "507f1f77bcf86cd799439011"
 
 // Find
-filter, _ := mongopher.FilterFromJSON([]byte(`{"name":"Alice"}`))
-doc, err := users.FindOne(ctx, filter)
+doc, err := users.FindOne(ctx, mongopher.Eq("name", "Alice"))
 fmt.Println(string(doc)) // {"_id":"507f1f77...","name":"Alice","age":30}
 ```
 
@@ -86,27 +86,60 @@ mongodb://user:pass@host:27017/?tls=true
 
 ## Filters
 
-Filters are built from raw JSON or with the empty filter helper.
+Filters are built with typed helpers or from raw JSON.
 
 ```go
-// From a JSON string
-filter, err := mongopher.FilterFromJSON([]byte(`{"role":"admin","age":{"$gte":18}}`))
+// Equality
+mongopher.Eq("status", "active")
+
+// Comparisons
+mongopher.Ne("status", "deleted")
+mongopher.Gt("age", 18)
+mongopher.Gte("age", 18)
+mongopher.Lt("age", 65)
+mongopher.Lte("age", 65)
+
+// Membership
+mongopher.In("role", "admin", "owner")
+
+// Field presence
+mongopher.Exists("deletedAt", false) // documents without the field
+mongopher.Exists("deletedAt", true)  // documents with the field
+
+// Combine with And
+mongopher.And(
+    mongopher.Eq("status", "active"),
+    mongopher.Gt("age", 18),
+)
 
 // Match all documents
-filter := mongopher.EmptyFilter()
+mongopher.EmptyFilter()
 
 // Match by _id
 filter, err := mongopher.FilterByID("user-42")
 ```
 
-Any valid MongoDB query expression works — operators like `$gt`, `$in`, `$or`, dot notation for nested fields, etc.
+Filters are passed directly to any read, write, or delete operation:
 
 ```go
-// Nested field
-filter, _ := mongopher.FilterFromJSON([]byte(`{"address.city":"Prague"}`))
+doc, err := col.FindOne(ctx, mongopher.Eq("email", "alice@example.com"))
 
-// $or
-filter, _ := mongopher.FilterFromJSON([]byte(`{"$or":[{"role":"admin"},{"role":"owner"}]}`))
+docs, err := col.Find(ctx, mongopher.And(
+    mongopher.Eq("status", "active"),
+    mongopher.Gte("age", 18),
+))
+
+res, err := col.UpdateMany(ctx, mongopher.In("role", "admin", "owner"),
+    []byte(`{"$set":{"reviewed":true}}`))
+
+res, err := col.DeleteMany(ctx, mongopher.Exists("deletedAt", true))
+```
+
+For anything not covered by the helpers — `$or`, `$regex`, dot notation, nested operators — fall back to raw JSON:
+
+```go
+filter, err := mongopher.FilterFromJSON([]byte(`{"address.city":"Prague"}`))
+filter, err := mongopher.FilterFromJSON([]byte(`{"$or":[{"role":"admin"},{"role":"owner"}]}`))
 ```
 
 ## CRUD operations

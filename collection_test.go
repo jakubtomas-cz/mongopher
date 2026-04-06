@@ -819,6 +819,218 @@ func TestFilterFromJSON_CustomStringID(t *testing.T) {
 	}
 }
 
+func names(docs [][]byte) []string {
+	var out []string
+	for _, d := range docs {
+		var m map[string]any
+		json.Unmarshal(d, &m)
+		if n, ok := m["name"].(string); ok {
+			out = append(out, n)
+		}
+	}
+	return out
+}
+
+func seedDocs(t *testing.T, c mongopher.Collection, docs ...string) {
+	t.Helper()
+	ctx := context.Background()
+	for _, d := range docs {
+		if _, err := c.InsertOne(ctx, []byte(d)); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+func TestEq_ObjectIDCoercion(t *testing.T) {
+	ctx := context.Background()
+	c := col(t)
+
+	res, err := c.InsertOne(ctx, []byte(`{"name":"Alice"}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	doc, err := c.FindOne(ctx, mongopher.Eq("_id", res.InsertedID))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var result map[string]any
+	json.Unmarshal(doc, &result)
+	if result["name"] != "Alice" {
+		t.Fatalf("expected name=Alice, got %v", result["name"])
+	}
+}
+
+func TestEq(t *testing.T) {
+	ctx := context.Background()
+	c := col(t)
+	seedDocs(t, c,
+		`{"name":"Alice","status":"active"}`,
+		`{"name":"Bob","status":"inactive"}`,
+	)
+
+	docs, err := c.Find(ctx, mongopher.Eq("status", "active"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n := names(docs); len(n) != 1 || n[0] != "Alice" {
+		t.Fatalf("expected [Alice], got %v", n)
+	}
+}
+
+func TestNe(t *testing.T) {
+	ctx := context.Background()
+	c := col(t)
+	seedDocs(t, c,
+		`{"name":"Alice","status":"active"}`,
+		`{"name":"Bob","status":"inactive"}`,
+	)
+
+	docs, err := c.Find(ctx, mongopher.Ne("status", "active"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n := names(docs); len(n) != 1 || n[0] != "Bob" {
+		t.Fatalf("expected [Bob], got %v", n)
+	}
+}
+
+func TestGt(t *testing.T) {
+	ctx := context.Background()
+	c := col(t)
+	seedDocs(t, c,
+		`{"name":"Alice","age":20}`,
+		`{"name":"Bob","age":30}`,
+		`{"name":"Carol","age":40}`,
+	)
+
+	docs, err := c.Find(ctx, mongopher.Gt("age", 25), mongopher.WithSort("age", mongopher.ASC))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n := names(docs); len(n) != 2 || n[0] != "Bob" || n[1] != "Carol" {
+		t.Fatalf("expected [Bob Carol], got %v", n)
+	}
+}
+
+func TestGte(t *testing.T) {
+	ctx := context.Background()
+	c := col(t)
+	seedDocs(t, c,
+		`{"name":"Alice","age":20}`,
+		`{"name":"Bob","age":30}`,
+		`{"name":"Carol","age":40}`,
+	)
+
+	docs, err := c.Find(ctx, mongopher.Gte("age", 30), mongopher.WithSort("age", mongopher.ASC))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n := names(docs); len(n) != 2 || n[0] != "Bob" || n[1] != "Carol" {
+		t.Fatalf("expected [Bob Carol], got %v", n)
+	}
+}
+
+func TestLt(t *testing.T) {
+	ctx := context.Background()
+	c := col(t)
+	seedDocs(t, c,
+		`{"name":"Alice","age":20}`,
+		`{"name":"Bob","age":30}`,
+		`{"name":"Carol","age":40}`,
+	)
+
+	docs, err := c.Find(ctx, mongopher.Lt("age", 35), mongopher.WithSort("age", mongopher.ASC))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n := names(docs); len(n) != 2 || n[0] != "Alice" || n[1] != "Bob" {
+		t.Fatalf("expected [Alice Bob], got %v", n)
+	}
+}
+
+func TestLte(t *testing.T) {
+	ctx := context.Background()
+	c := col(t)
+	seedDocs(t, c,
+		`{"name":"Alice","age":20}`,
+		`{"name":"Bob","age":30}`,
+		`{"name":"Carol","age":40}`,
+	)
+
+	docs, err := c.Find(ctx, mongopher.Lte("age", 30), mongopher.WithSort("age", mongopher.ASC))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n := names(docs); len(n) != 2 || n[0] != "Alice" || n[1] != "Bob" {
+		t.Fatalf("expected [Alice Bob], got %v", n)
+	}
+}
+
+func TestIn(t *testing.T) {
+	ctx := context.Background()
+	c := col(t)
+	seedDocs(t, c,
+		`{"name":"Alice","role":"admin"}`,
+		`{"name":"Bob","role":"user"}`,
+		`{"name":"Carol","role":"owner"}`,
+	)
+
+	docs, err := c.Find(ctx, mongopher.In("role", "admin", "owner"), mongopher.WithSort("name", mongopher.ASC))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n := names(docs); len(n) != 2 || n[0] != "Alice" || n[1] != "Carol" {
+		t.Fatalf("expected [Alice Carol], got %v", n)
+	}
+}
+
+func TestExists(t *testing.T) {
+	ctx := context.Background()
+	c := col(t)
+	seedDocs(t, c,
+		`{"name":"Alice","deletedAt":"2024-01-01"}`,
+		`{"name":"Bob"}`,
+	)
+
+	docs, err := c.Find(ctx, mongopher.Exists("deletedAt", false))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n := names(docs); len(n) != 1 || n[0] != "Bob" {
+		t.Fatalf("expected [Bob], got %v", n)
+	}
+
+	docs, err = c.Find(ctx, mongopher.Exists("deletedAt", true))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n := names(docs); len(n) != 1 || n[0] != "Alice" {
+		t.Fatalf("expected [Alice], got %v", n)
+	}
+}
+
+func TestAnd(t *testing.T) {
+	ctx := context.Background()
+	c := col(t)
+	seedDocs(t, c,
+		`{"name":"Alice","status":"active","age":20}`,
+		`{"name":"Bob","status":"active","age":40}`,
+		`{"name":"Carol","status":"inactive","age":40}`,
+	)
+
+	docs, err := c.Find(ctx, mongopher.And(
+		mongopher.Eq("status", "active"),
+		mongopher.Gt("age", 30),
+	))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n := names(docs); len(n) != 1 || n[0] != "Bob" {
+		t.Fatalf("expected [Bob], got %v", n)
+	}
+}
+
 func TestFilterByID(t *testing.T) {
 	ctx := context.Background()
 	c := col(t)
