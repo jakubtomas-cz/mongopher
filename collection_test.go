@@ -964,3 +964,242 @@ func TestDropIndex(t *testing.T) {
 		t.Fatalf("expected %d indexes after drop, got %d", len(before)-1, len(after))
 	}
 }
+
+func TestUpdateOne_WithUpsert_NoMatch(t *testing.T) {
+	ctx := context.Background()
+	c := col(t)
+
+	filter, _ := mongopher.FilterFromJSON([]byte(`{"name":"Ghost"}`))
+	res, err := c.UpdateOne(ctx, filter, []byte(`{"$set":{"name":"Ghost","age":0}}`), mongopher.WithUpsert())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.MatchedCount != 0 {
+		t.Fatalf("expected MatchedCount=0, got %d", res.MatchedCount)
+	}
+
+	count, err := c.CountDocuments(ctx, mongopher.EmptyFilter())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if count != 1 {
+		t.Fatalf("expected 1 upserted document, got %d", count)
+	}
+}
+
+func TestUpdateOne_WithUpsert_Match(t *testing.T) {
+	ctx := context.Background()
+	c := col(t)
+
+	if _, err := c.InsertOne(ctx, []byte(`{"name":"Alice","age":30}`)); err != nil {
+		t.Fatal(err)
+	}
+
+	filter, _ := mongopher.FilterFromJSON([]byte(`{"name":"Alice"}`))
+	res, err := c.UpdateOne(ctx, filter, []byte(`{"$set":{"age":31}}`), mongopher.WithUpsert())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.MatchedCount != 1 || res.ModifiedCount != 1 {
+		t.Fatalf("expected MatchedCount=1 ModifiedCount=1, got %d/%d", res.MatchedCount, res.ModifiedCount)
+	}
+
+	count, err := c.CountDocuments(ctx, mongopher.EmptyFilter())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if count != 1 {
+		t.Fatalf("expected 1 document (no duplicate inserted), got %d", count)
+	}
+}
+
+func TestUpdateMany_WithUpsert_NoMatch(t *testing.T) {
+	ctx := context.Background()
+	c := col(t)
+
+	filter, _ := mongopher.FilterFromJSON([]byte(`{"role":"ghost"}`))
+	res, err := c.UpdateMany(ctx, filter, []byte(`{"$set":{"role":"ghost"}}`), mongopher.WithUpsert())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.MatchedCount != 0 {
+		t.Fatalf("expected MatchedCount=0, got %d", res.MatchedCount)
+	}
+
+	count, err := c.CountDocuments(ctx, mongopher.EmptyFilter())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if count != 1 {
+		t.Fatalf("expected 1 upserted document, got %d", count)
+	}
+}
+
+func TestReplaceOne(t *testing.T) {
+	ctx := context.Background()
+	c := col(t)
+
+	if _, err := c.InsertOne(ctx, []byte(`{"name":"Alice","age":30,"role":"admin"}`)); err != nil {
+		t.Fatal(err)
+	}
+
+	filter, _ := mongopher.FilterFromJSON([]byte(`{"name":"Alice"}`))
+	res, err := c.ReplaceOne(ctx, filter, []byte(`{"name":"Alice","age":31}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.MatchedCount != 1 || res.ModifiedCount != 1 {
+		t.Fatalf("expected MatchedCount=1 ModifiedCount=1, got %d/%d", res.MatchedCount, res.ModifiedCount)
+	}
+
+	doc, err := c.FindOne(ctx, filter)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var result map[string]any
+	json.Unmarshal(doc, &result)
+	if result["age"] != float64(31) {
+		t.Fatalf("expected age=31, got %v", result["age"])
+	}
+	if _, hasRole := result["role"]; hasRole {
+		t.Fatal("expected role field to be gone after replace")
+	}
+}
+
+func TestReplaceOne_NoMatch(t *testing.T) {
+	ctx := context.Background()
+	c := col(t)
+
+	filter, _ := mongopher.FilterFromJSON([]byte(`{"name":"nobody"}`))
+	res, err := c.ReplaceOne(ctx, filter, []byte(`{"name":"nobody"}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.MatchedCount != 0 {
+		t.Fatalf("expected MatchedCount=0, got %d", res.MatchedCount)
+	}
+}
+
+func TestReplaceOne_WithUpsert(t *testing.T) {
+	ctx := context.Background()
+	c := col(t)
+
+	filter, _ := mongopher.FilterFromJSON([]byte(`{"name":"Ghost"}`))
+	res, err := c.ReplaceOne(ctx, filter, []byte(`{"name":"Ghost","score":0}`), mongopher.WithUpsert())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.MatchedCount != 0 {
+		t.Fatalf("expected MatchedCount=0, got %d", res.MatchedCount)
+	}
+
+	count, err := c.CountDocuments(ctx, mongopher.EmptyFilter())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if count != 1 {
+		t.Fatalf("expected 1 upserted document, got %d", count)
+	}
+}
+
+func TestFindOneAndUpdate_ReturnBefore(t *testing.T) {
+	ctx := context.Background()
+	c := col(t)
+
+	if _, err := c.InsertOne(ctx, []byte(`{"name":"Alice","age":30}`)); err != nil {
+		t.Fatal(err)
+	}
+
+	filter, _ := mongopher.FilterFromJSON([]byte(`{"name":"Alice"}`))
+	doc, err := c.FindOneAndUpdate(ctx, filter, []byte(`{"$set":{"age":31}}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var result map[string]any
+	json.Unmarshal(doc, &result)
+	// default: returns document before the update
+	if result["age"] != float64(30) {
+		t.Fatalf("expected age=30 (before update), got %v", result["age"])
+	}
+}
+
+func TestFindOneAndUpdate_ReturnAfter(t *testing.T) {
+	ctx := context.Background()
+	c := col(t)
+
+	if _, err := c.InsertOne(ctx, []byte(`{"name":"Alice","age":30}`)); err != nil {
+		t.Fatal(err)
+	}
+
+	filter, _ := mongopher.FilterFromJSON([]byte(`{"name":"Alice"}`))
+	doc, err := c.FindOneAndUpdate(ctx, filter, []byte(`{"$set":{"age":31}}`), mongopher.WithReturnAfter())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var result map[string]any
+	json.Unmarshal(doc, &result)
+	if result["age"] != float64(31) {
+		t.Fatalf("expected age=31 (after update), got %v", result["age"])
+	}
+}
+
+func TestFindOneAndUpdate_NoMatch(t *testing.T) {
+	ctx := context.Background()
+	c := col(t)
+
+	filter, _ := mongopher.FilterFromJSON([]byte(`{"name":"nobody"}`))
+	_, err := c.FindOneAndUpdate(ctx, filter, []byte(`{"$set":{"age":1}}`))
+	if !errors.Is(err, mongopher.ErrNoDocuments) {
+		t.Fatalf("expected ErrNoDocuments, got %v", err)
+	}
+}
+
+func TestFindOneAndUpdate_InvalidJSON(t *testing.T) {
+	c := col(t)
+	_, err := c.FindOneAndUpdate(context.Background(), mongopher.EmptyFilter(), []byte(`not json`))
+	if !errors.Is(err, mongopher.ErrInvalidJSON) {
+		t.Fatalf("expected ErrInvalidJSON, got %v", err)
+	}
+}
+
+func TestFindOneAndDelete(t *testing.T) {
+	ctx := context.Background()
+	c := col(t)
+
+	if _, err := c.InsertOne(ctx, []byte(`{"name":"Alice","age":30}`)); err != nil {
+		t.Fatal(err)
+	}
+
+	filter, _ := mongopher.FilterFromJSON([]byte(`{"name":"Alice"}`))
+	doc, err := c.FindOneAndDelete(ctx, filter)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var result map[string]any
+	json.Unmarshal(doc, &result)
+	if result["name"] != "Alice" {
+		t.Fatalf("expected returned doc to be Alice, got %v", result["name"])
+	}
+
+	count, err := c.CountDocuments(ctx, mongopher.EmptyFilter())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if count != 0 {
+		t.Fatalf("expected 0 documents after delete, got %d", count)
+	}
+}
+
+func TestFindOneAndDelete_NoMatch(t *testing.T) {
+	ctx := context.Background()
+	c := col(t)
+
+	filter, _ := mongopher.FilterFromJSON([]byte(`{"name":"nobody"}`))
+	_, err := c.FindOneAndDelete(ctx, filter)
+	if !errors.Is(err, mongopher.ErrNoDocuments) {
+		t.Fatalf("expected ErrNoDocuments, got %v", err)
+	}
+}

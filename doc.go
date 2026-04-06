@@ -93,6 +93,38 @@
 // If no document matches, err is nil and MatchedCount is 0.
 // Check MatchedCount explicitly if you need to detect a no-op update.
 //
+// Pass WithUpsert to insert a new document when no match is found:
+//
+//	res, err := col.UpdateOne(ctx, filter, update, mongopher.WithUpsert())
+//	res, err = col.UpdateMany(ctx, filter, update, mongopher.WithUpsert())
+//
+// # Replacing documents
+//
+// ReplaceOne swaps the entire matched document. No update operators — just the
+// full replacement document. Fields absent from the replacement are removed.
+//
+//	res, err := col.ReplaceOne(ctx, filter, []byte(`{"name":"Alice","age":31}`))
+//	fmt.Println(res.MatchedCount, res.ModifiedCount)
+//
+// WithUpsert is also accepted:
+//
+//	res, err = col.ReplaceOne(ctx, filter, replacement, mongopher.WithUpsert())
+//
+// # Atomic find-and-modify
+//
+// FindOneAndUpdate and FindOneAndDelete find a document, apply the change,
+// and return the document — all atomically. Both return ErrNoDocuments when
+// no document matches the filter.
+//
+//	// Returns the document before the update (default)
+//	doc, err := col.FindOneAndUpdate(ctx, filter, []byte(`{"$set":{"age":31}}`))
+//
+//	// Returns the document after the update
+//	doc, err = col.FindOneAndUpdate(ctx, filter, update, mongopher.WithReturnAfter())
+//
+//	// Returns the deleted document
+//	doc, err = col.FindOneAndDelete(ctx, filter)
+//
 // # Deleting documents
 //
 //	res, err := col.DeleteOne(ctx, filter)

@@ -8,6 +8,9 @@ Pass JSON in, get JSON back. No struct tags, no code generation, no ORM ceremony
 
 - JSON-native: no struct tags, no codegen, no ORM
 - CRUD, aggregation, indexes, and transactions out of the box
+- Atomic find-and-modify: `FindOneAndUpdate`, `FindOneAndDelete`
+- Full document replacement with `ReplaceOne`
+- Upsert support on `UpdateOne`, `UpdateMany`, and `ReplaceOne`
 - Sorting, pagination, and multi-field ordering
 - ObjectIDs as plain hex strings — no Extended JSON noise
 - Thin wrapper over the official MongoDB Go driver — no magic, full driver access when needed
@@ -199,6 +202,47 @@ res, err := col.UpdateMany(ctx, filter, []byte(`{"$inc":{"loginCount":1}}`))
 ```
 
 If no document matches the filter, `err` is `nil` and `MatchedCount` will be `0`. No error is returned for a no-op update — check `MatchedCount` explicitly if you need to detect that case.
+
+#### Upsert
+
+Pass `WithUpsert()` to insert a new document when no match is found:
+
+```go
+res, err := col.UpdateOne(ctx, filter, []byte(`{"$set":{"role":"admin"}}`), mongopher.WithUpsert())
+res, err := col.UpdateMany(ctx, filter, []byte(`{"$set":{"active":true}}`), mongopher.WithUpsert())
+```
+
+### Replace
+
+`ReplaceOne` swaps the entire matched document for a new one (no update operators — just the replacement document):
+
+```go
+res, err := col.ReplaceOne(ctx, filter, []byte(`{"name":"Alice","age":31}`))
+fmt.Println(res.MatchedCount, res.ModifiedCount)
+```
+
+Fields that existed in the original but are absent from the replacement are removed. `WithUpsert()` is also accepted:
+
+```go
+res, err := col.ReplaceOne(ctx, filter, []byte(`{"name":"Alice","age":31}`), mongopher.WithUpsert())
+```
+
+### Atomic find-and-modify
+
+`FindOneAndUpdate` and `FindOneAndDelete` find a document, apply the change, and return the document — all atomically.
+
+```go
+// Returns the document before the update (default)
+doc, err := col.FindOneAndUpdate(ctx, filter, []byte(`{"$set":{"age":31}}`))
+
+// Returns the document after the update
+doc, err := col.FindOneAndUpdate(ctx, filter, []byte(`{"$set":{"age":31}}`), mongopher.WithReturnAfter())
+
+// Returns the deleted document
+doc, err := col.FindOneAndDelete(ctx, filter)
+```
+
+Both return `ErrNoDocuments` when no document matches the filter.
 
 ### Delete
 

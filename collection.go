@@ -160,13 +160,31 @@ func (c *Collection) Find(ctx context.Context, filter Filter, opts ...FindOption
 	return results, nil
 }
 
+// UpdateOption configures an Update or Replace call.
+type UpdateOption func(*updateOptions)
+
+type updateOptions struct {
+	upsert bool
+}
+
+// WithUpsert inserts a new document if no document matches the filter.
+func WithUpsert() UpdateOption { return func(o *updateOptions) { o.upsert = true } }
+
 // UpdateOne updates the first document matching filter using a MongoDB update document (e.g. {"$set":{...}}).
-func (c *Collection) UpdateOne(ctx context.Context, filter Filter, update []byte) (UpdateResult, error) {
+func (c *Collection) UpdateOne(ctx context.Context, filter Filter, update []byte, opts ...UpdateOption) (UpdateResult, error) {
+	uo := &updateOptions{}
+	for _, o := range opts {
+		o(uo)
+	}
 	u, err := jsonToBSON(update)
 	if err != nil {
 		return UpdateResult{}, err
 	}
-	res, err := c.inner.UpdateOne(ctx, filter.raw, u)
+	mongoOpts := options.UpdateOne()
+	if uo.upsert {
+		mongoOpts.SetUpsert(true)
+	}
+	res, err := c.inner.UpdateOne(ctx, filter.raw, u, mongoOpts)
 	if err != nil {
 		return UpdateResult{}, err
 	}
@@ -174,16 +192,98 @@ func (c *Collection) UpdateOne(ctx context.Context, filter Filter, update []byte
 }
 
 // UpdateMany updates all documents matching filter.
-func (c *Collection) UpdateMany(ctx context.Context, filter Filter, update []byte) (UpdateResult, error) {
+func (c *Collection) UpdateMany(ctx context.Context, filter Filter, update []byte, opts ...UpdateOption) (UpdateResult, error) {
+	uo := &updateOptions{}
+	for _, o := range opts {
+		o(uo)
+	}
 	u, err := jsonToBSON(update)
 	if err != nil {
 		return UpdateResult{}, err
 	}
-	res, err := c.inner.UpdateMany(ctx, filter.raw, u)
+	mongoOpts := options.UpdateMany()
+	if uo.upsert {
+		mongoOpts.SetUpsert(true)
+	}
+	res, err := c.inner.UpdateMany(ctx, filter.raw, u, mongoOpts)
 	if err != nil {
 		return UpdateResult{}, err
 	}
 	return UpdateResult{MatchedCount: res.MatchedCount, ModifiedCount: res.ModifiedCount}, nil
+}
+
+// ReplaceOne replaces the first document matching filter with replacement.
+func (c *Collection) ReplaceOne(ctx context.Context, filter Filter, replacement []byte, opts ...UpdateOption) (UpdateResult, error) {
+	uo := &updateOptions{}
+	for _, o := range opts {
+		o(uo)
+	}
+	r, err := jsonToBSON(replacement)
+	if err != nil {
+		return UpdateResult{}, err
+	}
+	mongoOpts := options.Replace()
+	if uo.upsert {
+		mongoOpts.SetUpsert(true)
+	}
+	res, err := c.inner.ReplaceOne(ctx, filter.raw, r, mongoOpts)
+	if err != nil {
+		return UpdateResult{}, err
+	}
+	return UpdateResult{MatchedCount: res.MatchedCount, ModifiedCount: res.ModifiedCount}, nil
+}
+
+// FindOneAndUpdateOption configures a FindOneAndUpdate call.
+type FindOneAndUpdateOption func(*findOneAndUpdateOptions)
+
+type findOneAndUpdateOptions struct {
+	returnAfter bool
+}
+
+// WithReturnAfter makes FindOneAndUpdate return the document as it looks after the update.
+// By default the document before the update is returned.
+func WithReturnAfter() FindOneAndUpdateOption {
+	return func(o *findOneAndUpdateOptions) { o.returnAfter = true }
+}
+
+// FindOneAndUpdate atomically finds the first document matching filter, applies update, and returns it.
+// Returns ErrNoDocuments if no document matches.
+func (c *Collection) FindOneAndUpdate(ctx context.Context, filter Filter, update []byte, opts ...FindOneAndUpdateOption) ([]byte, error) {
+	fo := &findOneAndUpdateOptions{}
+	for _, o := range opts {
+		o(fo)
+	}
+	u, err := jsonToBSON(update)
+	if err != nil {
+		return nil, err
+	}
+	mongoOpts := options.FindOneAndUpdate()
+	if fo.returnAfter {
+		mongoOpts.SetReturnDocument(options.After)
+	}
+	res := c.inner.FindOneAndUpdate(ctx, filter.raw, u, mongoOpts)
+	var raw bson.D
+	if err := res.Decode(&raw); err != nil {
+		if errors.Is(err, mongo.ErrNoDocuments) {
+			return nil, ErrNoDocuments
+		}
+		return nil, err
+	}
+	return bsonToJSON(raw)
+}
+
+// FindOneAndDelete atomically finds the first document matching filter, deletes it, and returns it.
+// Returns ErrNoDocuments if no document matches.
+func (c *Collection) FindOneAndDelete(ctx context.Context, filter Filter) ([]byte, error) {
+	res := c.inner.FindOneAndDelete(ctx, filter.raw)
+	var raw bson.D
+	if err := res.Decode(&raw); err != nil {
+		if errors.Is(err, mongo.ErrNoDocuments) {
+			return nil, ErrNoDocuments
+		}
+		return nil, err
+	}
+	return bsonToJSON(raw)
 }
 
 // DeleteOne deletes the first document matching filter.
