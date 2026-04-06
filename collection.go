@@ -23,6 +23,8 @@ type Collection interface {
 	FindOneAndDelete(ctx context.Context, filter Filter) ([]byte, error)
 	DeleteOne(ctx context.Context, filter Filter) (DeleteResult, error)
 	DeleteMany(ctx context.Context, filter Filter) (DeleteResult, error)
+	BulkUpdate(ctx context.Context, ops []BulkUpdateOp) (UpdateResult, error)
+	BulkDelete(ctx context.Context, filters []Filter) (DeleteResult, error)
 	CountDocuments(ctx context.Context, filter Filter) (int64, error)
 	Aggregate(ctx context.Context, pipeline []byte) ([][]byte, error)
 	CreateIndex(ctx context.Context, keys []IndexKey, opts ...IndexOption) (string, error)
@@ -319,6 +321,43 @@ func (c *mongoCollection) DeleteOne(ctx context.Context, filter Filter) (DeleteR
 // DeleteMany deletes all documents matching filter.
 func (c *mongoCollection) DeleteMany(ctx context.Context, filter Filter) (DeleteResult, error) {
 	res, err := c.inner.DeleteMany(ctx, filter.raw)
+	if err != nil {
+		return DeleteResult{}, err
+	}
+	return DeleteResult{DeletedCount: res.DeletedCount}, nil
+}
+
+// BulkUpdateOp specifies a single update operation within a BulkUpdate call.
+type BulkUpdateOp struct {
+	Filter Filter
+	Update []byte
+}
+
+// BulkUpdate applies multiple update operations in a single round-trip.
+// Each op updates the first document matching its filter.
+func (c *mongoCollection) BulkUpdate(ctx context.Context, ops []BulkUpdateOp) (UpdateResult, error) {
+	models := make([]mongo.WriteModel, len(ops))
+	for i, op := range ops {
+		u, err := jsonToBSON(op.Update)
+		if err != nil {
+			return UpdateResult{}, fmt.Errorf("op[%d]: %w", i, err)
+		}
+		models[i] = mongo.NewUpdateOneModel().SetFilter(op.Filter.raw).SetUpdate(u)
+	}
+	res, err := c.inner.BulkWrite(ctx, models)
+	if err != nil {
+		return UpdateResult{}, err
+	}
+	return UpdateResult{MatchedCount: res.MatchedCount, ModifiedCount: res.ModifiedCount}, nil
+}
+
+// BulkDelete deletes the first document matching each filter in a single round-trip.
+func (c *mongoCollection) BulkDelete(ctx context.Context, filters []Filter) (DeleteResult, error) {
+	models := make([]mongo.WriteModel, len(filters))
+	for i, f := range filters {
+		models[i] = mongo.NewDeleteOneModel().SetFilter(f.raw)
+	}
+	res, err := c.inner.BulkWrite(ctx, models)
 	if err != nil {
 		return DeleteResult{}, err
 	}

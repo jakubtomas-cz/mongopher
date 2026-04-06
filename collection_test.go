@@ -1294,3 +1294,130 @@ func TestCollection_InterfaceReturnedByClient(t *testing.T) {
 	// This is a compile-time guarantee but worth asserting explicitly.
 	var _ mongopher.Collection = testClient.Collection("any")
 }
+
+func TestBulkUpdate(t *testing.T) {
+	ctx := context.Background()
+	c := col(t)
+
+	docs := [][]byte{
+		[]byte(`{"name":"Alice","score":10}`),
+		[]byte(`{"name":"Bob","score":10}`),
+		[]byte(`{"name":"Carol","score":10}`),
+	}
+	if _, err := c.InsertMany(ctx, docs); err != nil {
+		t.Fatal(err)
+	}
+
+	filterAlice, _ := mongopher.FilterFromJSON([]byte(`{"name":"Alice"}`))
+	filterBob, _ := mongopher.FilterFromJSON([]byte(`{"name":"Bob"}`))
+
+	res, err := c.BulkUpdate(ctx, []mongopher.BulkUpdateOp{
+		{Filter: filterAlice, Update: []byte(`{"$set":{"score":99}}`)},
+		{Filter: filterBob, Update: []byte(`{"$set":{"score":88}}`)},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.MatchedCount != 2 {
+		t.Fatalf("expected MatchedCount=2, got %d", res.MatchedCount)
+	}
+	if res.ModifiedCount != 2 {
+		t.Fatalf("expected ModifiedCount=2, got %d", res.ModifiedCount)
+	}
+
+	doc, _ := c.FindOne(ctx, filterAlice)
+	var alice map[string]any
+	json.Unmarshal(doc, &alice)
+	if alice["score"] != float64(99) {
+		t.Fatalf("expected Alice score=99, got %v", alice["score"])
+	}
+
+	doc, _ = c.FindOne(ctx, filterBob)
+	var bob map[string]any
+	json.Unmarshal(doc, &bob)
+	if bob["score"] != float64(88) {
+		t.Fatalf("expected Bob score=88, got %v", bob["score"])
+	}
+
+	// Carol should be untouched
+	filterCarol, _ := mongopher.FilterFromJSON([]byte(`{"name":"Carol"}`))
+	doc, _ = c.FindOne(ctx, filterCarol)
+	var carol map[string]any
+	json.Unmarshal(doc, &carol)
+	if carol["score"] != float64(10) {
+		t.Fatalf("expected Carol score=10 (untouched), got %v", carol["score"])
+	}
+}
+
+func TestBulkUpdate_InvalidJSON(t *testing.T) {
+	c := col(t)
+	_, err := c.BulkUpdate(context.Background(), []mongopher.BulkUpdateOp{
+		{Filter: mongopher.EmptyFilter(), Update: []byte(`not json`)},
+	})
+	if !errors.Is(err, mongopher.ErrInvalidJSON) {
+		t.Fatalf("expected ErrInvalidJSON, got %v", err)
+	}
+}
+
+func TestBulkUpdate_NoMatch(t *testing.T) {
+	ctx := context.Background()
+	c := col(t)
+
+	filter, _ := mongopher.FilterFromJSON([]byte(`{"name":"nobody"}`))
+	res, err := c.BulkUpdate(ctx, []mongopher.BulkUpdateOp{
+		{Filter: filter, Update: []byte(`{"$set":{"score":99}}`)},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.MatchedCount != 0 {
+		t.Fatalf("expected MatchedCount=0, got %d", res.MatchedCount)
+	}
+}
+
+func TestBulkDelete(t *testing.T) {
+	ctx := context.Background()
+	c := col(t)
+
+	docs := [][]byte{
+		[]byte(`{"name":"Alice"}`),
+		[]byte(`{"name":"Bob"}`),
+		[]byte(`{"name":"Carol"}`),
+	}
+	if _, err := c.InsertMany(ctx, docs); err != nil {
+		t.Fatal(err)
+	}
+
+	filterAlice, _ := mongopher.FilterFromJSON([]byte(`{"name":"Alice"}`))
+	filterBob, _ := mongopher.FilterFromJSON([]byte(`{"name":"Bob"}`))
+
+	res, err := c.BulkDelete(ctx, []mongopher.Filter{filterAlice, filterBob})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.DeletedCount != 2 {
+		t.Fatalf("expected DeletedCount=2, got %d", res.DeletedCount)
+	}
+
+	count, err := c.CountDocuments(ctx, mongopher.EmptyFilter())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if count != 1 {
+		t.Fatalf("expected 1 remaining document, got %d", count)
+	}
+}
+
+func TestBulkDelete_NoMatch(t *testing.T) {
+	ctx := context.Background()
+	c := col(t)
+
+	filter, _ := mongopher.FilterFromJSON([]byte(`{"name":"nobody"}`))
+	res, err := c.BulkDelete(ctx, []mongopher.Filter{filter})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.DeletedCount != 0 {
+		t.Fatalf("expected DeletedCount=0, got %d", res.DeletedCount)
+	}
+}

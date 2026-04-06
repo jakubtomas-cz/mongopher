@@ -255,6 +255,25 @@ fmt.Println(res.DeletedCount)
 res, err := col.DeleteMany(ctx, filter)
 ```
 
+### Bulk operations
+
+`BulkUpdate` and `BulkDelete` send multiple operations to MongoDB in a single round-trip. Use `InsertMany` for bulk inserts.
+
+```go
+// Update multiple documents, each with its own filter
+res, err := col.BulkUpdate(ctx, []mongopher.BulkUpdateOp{
+    {Filter: filterAlice, Update: []byte(`{"$set":{"score":99}}`)},
+    {Filter: filterBob,   Update: []byte(`{"$set":{"score":88}}`)},
+})
+fmt.Println(res.MatchedCount, res.ModifiedCount)
+
+// Delete multiple documents, each with its own filter
+res, err := col.BulkDelete(ctx, []mongopher.Filter{filterAlice, filterBob})
+fmt.Println(res.DeletedCount)
+```
+
+> **Note:** Bulk operations are ordered but not transactional. If one operation fails, MongoDB stops processing the remaining ones but does **not** roll back those that already succeeded. Wrap in `WithTransaction` if you need all-or-nothing behaviour.
+
 ### Count
 
 ```go
