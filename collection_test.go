@@ -34,7 +34,7 @@ func TestMain(m *testing.M) {
 	os.Exit(code)
 }
 
-func col(t *testing.T) *mongopher.Collection {
+func col(t *testing.T) mongopher.Collection {
 	t.Helper()
 	c := testClient.Collection(t.Name())
 	// Clean up the collection before each test
@@ -1244,4 +1244,53 @@ func TestFindOneAndDelete_NoMatch(t *testing.T) {
 	if !errors.Is(err, mongopher.ErrNoDocuments) {
 		t.Fatalf("expected ErrNoDocuments, got %v", err)
 	}
+}
+
+// recordingCollection wraps a Collection and counts InsertOne calls.
+// This demonstrates the wrapper pattern enabled by the Collection interface.
+type recordingCollection struct {
+	mongopher.Collection
+	insertCount int
+}
+
+func (r *recordingCollection) InsertOne(ctx context.Context, doc []byte) (mongopher.InsertResult, error) {
+	r.insertCount++
+	return r.Collection.InsertOne(ctx, doc)
+}
+
+func TestCollection_CanBeWrapped(t *testing.T) {
+	ctx := context.Background()
+	base := testClient.Collection(t.Name())
+	t.Cleanup(func() { _ = base.Drop(context.Background()) })
+
+	rec := &recordingCollection{Collection: base}
+
+	// Overridden method is intercepted
+	if _, err := rec.InsertOne(ctx, []byte(`{"name":"Alice"}`)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := rec.InsertOne(ctx, []byte(`{"name":"Bob"}`)); err != nil {
+		t.Fatal(err)
+	}
+	if rec.insertCount != 2 {
+		t.Fatalf("expected insertCount=2, got %d", rec.insertCount)
+	}
+
+	// Non-overridden methods delegate to the underlying collection
+	count, err := rec.CountDocuments(ctx, mongopher.EmptyFilter())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if count != 2 {
+		t.Fatalf("expected 2 documents, got %d", count)
+	}
+
+	// Wrapper satisfies the Collection interface
+	var _ mongopher.Collection = rec
+}
+
+func TestCollection_InterfaceReturnedByClient(t *testing.T) {
+	// Verify that client.Collection() returns a value assignable to the interface.
+	// This is a compile-time guarantee but worth asserting explicitly.
+	var _ mongopher.Collection = testClient.Collection("any")
 }

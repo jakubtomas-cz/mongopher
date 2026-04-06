@@ -214,6 +214,36 @@
 //	    // instance is not a replica set or sharded cluster
 //	}
 //
+// # Extending Collection
+//
+// Collection is an interface, so you can wrap it to intercept or augment any
+// operation without modifying the library. Embed mongopher.Collection in your
+// own struct and override only the methods you care about — the rest delegate
+// to the underlying implementation automatically.
+//
+//	type TimestampedCollection struct {
+//	    mongopher.Collection
+//	}
+//
+//	func (c *TimestampedCollection) InsertOne(ctx context.Context, doc []byte) (mongopher.InsertResult, error) {
+//	    var m map[string]any
+//	    if err := json.Unmarshal(doc, &m); err != nil {
+//	        return mongopher.InsertResult{}, err
+//	    }
+//	    m["createdAt"] = time.Now().UTC()
+//	    doc, _ = json.Marshal(m)
+//	    return c.Collection.InsertOne(ctx, doc)
+//	}
+//
+// Use it anywhere a Collection is expected:
+//
+//	col := &TimestampedCollection{Collection: client.Collection("users")}
+//	col.InsertOne(ctx, []byte(`{"name":"Alice"}`)) // createdAt added automatically
+//	col.FindOne(ctx, filter)                        // delegates to the underlying collection
+//
+// Common use cases: automatic timestamps, audit logging, input validation,
+// cache invalidation, instrumentation.
+//
 // # _id handling
 //
 // MongoDB ObjectIDs are returned as plain hex strings, not Extended JSON.

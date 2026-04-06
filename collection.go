@@ -10,8 +10,29 @@ import (
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
 )
 
-// Collection wraps a mongo.Collection and exposes a JSON-native CRUD API.
-type Collection struct {
+// Collection is the interface for all collection operations.
+type Collection interface {
+	InsertOne(ctx context.Context, doc []byte) (InsertResult, error)
+	InsertMany(ctx context.Context, docs [][]byte) (InsertManyResult, error)
+	FindOne(ctx context.Context, filter Filter) ([]byte, error)
+	Find(ctx context.Context, filter Filter, opts ...FindOption) ([][]byte, error)
+	UpdateOne(ctx context.Context, filter Filter, update []byte, opts ...UpdateOption) (UpdateResult, error)
+	UpdateMany(ctx context.Context, filter Filter, update []byte, opts ...UpdateOption) (UpdateResult, error)
+	ReplaceOne(ctx context.Context, filter Filter, replacement []byte, opts ...UpdateOption) (UpdateResult, error)
+	FindOneAndUpdate(ctx context.Context, filter Filter, update []byte, opts ...FindOneAndUpdateOption) ([]byte, error)
+	FindOneAndDelete(ctx context.Context, filter Filter) ([]byte, error)
+	DeleteOne(ctx context.Context, filter Filter) (DeleteResult, error)
+	DeleteMany(ctx context.Context, filter Filter) (DeleteResult, error)
+	CountDocuments(ctx context.Context, filter Filter) (int64, error)
+	Aggregate(ctx context.Context, pipeline []byte) ([][]byte, error)
+	CreateIndex(ctx context.Context, keys []IndexKey, opts ...IndexOption) (string, error)
+	DropIndex(ctx context.Context, name string) error
+	ListIndexes(ctx context.Context) ([][]byte, error)
+	Drop(ctx context.Context) error
+}
+
+// mongoCollection wraps a mongo.Collection and implements Collection.
+type mongoCollection struct {
 	inner *mongo.Collection
 }
 
@@ -71,7 +92,7 @@ func WithSort(field string, ascending SortDirection) FindOption {
 }
 
 // InsertOne inserts a single JSON document and returns its inserted ID.
-func (c *Collection) InsertOne(ctx context.Context, doc []byte) (InsertResult, error) {
+func (c *mongoCollection) InsertOne(ctx context.Context, doc []byte) (InsertResult, error) {
 	d, err := jsonToBSON(doc)
 	if err != nil {
 		return InsertResult{}, err
@@ -84,7 +105,7 @@ func (c *Collection) InsertOne(ctx context.Context, doc []byte) (InsertResult, e
 }
 
 // InsertMany inserts multiple JSON documents and returns their inserted IDs.
-func (c *Collection) InsertMany(ctx context.Context, docs [][]byte) (InsertManyResult, error) {
+func (c *mongoCollection) InsertMany(ctx context.Context, docs [][]byte) (InsertManyResult, error) {
 	bsons := make([]interface{}, len(docs))
 	for i, doc := range docs {
 		d, err := jsonToBSON(doc)
@@ -106,7 +127,7 @@ func (c *Collection) InsertMany(ctx context.Context, docs [][]byte) (InsertManyR
 
 // FindOne returns the first document matching filter as JSON.
 // Returns ErrNoDocuments if no document matches.
-func (c *Collection) FindOne(ctx context.Context, filter Filter) ([]byte, error) {
+func (c *mongoCollection) FindOne(ctx context.Context, filter Filter) ([]byte, error) {
 	res := c.inner.FindOne(ctx, filter.raw)
 	var raw bson.D
 	if err := res.Decode(&raw); err != nil {
@@ -119,7 +140,7 @@ func (c *Collection) FindOne(ctx context.Context, filter Filter) ([]byte, error)
 }
 
 // Find returns all documents matching filter as a slice of JSON.
-func (c *Collection) Find(ctx context.Context, filter Filter, opts ...FindOption) ([][]byte, error) {
+func (c *mongoCollection) Find(ctx context.Context, filter Filter, opts ...FindOption) ([][]byte, error) {
 	fo := &findOptions{}
 	for _, o := range opts {
 		o(fo)
@@ -171,7 +192,7 @@ type updateOptions struct {
 func WithUpsert() UpdateOption { return func(o *updateOptions) { o.upsert = true } }
 
 // UpdateOne updates the first document matching filter using a MongoDB update document (e.g. {"$set":{...}}).
-func (c *Collection) UpdateOne(ctx context.Context, filter Filter, update []byte, opts ...UpdateOption) (UpdateResult, error) {
+func (c *mongoCollection) UpdateOne(ctx context.Context, filter Filter, update []byte, opts ...UpdateOption) (UpdateResult, error) {
 	uo := &updateOptions{}
 	for _, o := range opts {
 		o(uo)
@@ -192,7 +213,7 @@ func (c *Collection) UpdateOne(ctx context.Context, filter Filter, update []byte
 }
 
 // UpdateMany updates all documents matching filter.
-func (c *Collection) UpdateMany(ctx context.Context, filter Filter, update []byte, opts ...UpdateOption) (UpdateResult, error) {
+func (c *mongoCollection) UpdateMany(ctx context.Context, filter Filter, update []byte, opts ...UpdateOption) (UpdateResult, error) {
 	uo := &updateOptions{}
 	for _, o := range opts {
 		o(uo)
@@ -213,7 +234,7 @@ func (c *Collection) UpdateMany(ctx context.Context, filter Filter, update []byt
 }
 
 // ReplaceOne replaces the first document matching filter with replacement.
-func (c *Collection) ReplaceOne(ctx context.Context, filter Filter, replacement []byte, opts ...UpdateOption) (UpdateResult, error) {
+func (c *mongoCollection) ReplaceOne(ctx context.Context, filter Filter, replacement []byte, opts ...UpdateOption) (UpdateResult, error) {
 	uo := &updateOptions{}
 	for _, o := range opts {
 		o(uo)
@@ -248,7 +269,7 @@ func WithReturnAfter() FindOneAndUpdateOption {
 
 // FindOneAndUpdate atomically finds the first document matching filter, applies update, and returns it.
 // Returns ErrNoDocuments if no document matches.
-func (c *Collection) FindOneAndUpdate(ctx context.Context, filter Filter, update []byte, opts ...FindOneAndUpdateOption) ([]byte, error) {
+func (c *mongoCollection) FindOneAndUpdate(ctx context.Context, filter Filter, update []byte, opts ...FindOneAndUpdateOption) ([]byte, error) {
 	fo := &findOneAndUpdateOptions{}
 	for _, o := range opts {
 		o(fo)
@@ -274,7 +295,7 @@ func (c *Collection) FindOneAndUpdate(ctx context.Context, filter Filter, update
 
 // FindOneAndDelete atomically finds the first document matching filter, deletes it, and returns it.
 // Returns ErrNoDocuments if no document matches.
-func (c *Collection) FindOneAndDelete(ctx context.Context, filter Filter) ([]byte, error) {
+func (c *mongoCollection) FindOneAndDelete(ctx context.Context, filter Filter) ([]byte, error) {
 	res := c.inner.FindOneAndDelete(ctx, filter.raw)
 	var raw bson.D
 	if err := res.Decode(&raw); err != nil {
@@ -287,7 +308,7 @@ func (c *Collection) FindOneAndDelete(ctx context.Context, filter Filter) ([]byt
 }
 
 // DeleteOne deletes the first document matching filter.
-func (c *Collection) DeleteOne(ctx context.Context, filter Filter) (DeleteResult, error) {
+func (c *mongoCollection) DeleteOne(ctx context.Context, filter Filter) (DeleteResult, error) {
 	res, err := c.inner.DeleteOne(ctx, filter.raw)
 	if err != nil {
 		return DeleteResult{}, err
@@ -296,7 +317,7 @@ func (c *Collection) DeleteOne(ctx context.Context, filter Filter) (DeleteResult
 }
 
 // DeleteMany deletes all documents matching filter.
-func (c *Collection) DeleteMany(ctx context.Context, filter Filter) (DeleteResult, error) {
+func (c *mongoCollection) DeleteMany(ctx context.Context, filter Filter) (DeleteResult, error) {
 	res, err := c.inner.DeleteMany(ctx, filter.raw)
 	if err != nil {
 		return DeleteResult{}, err
@@ -305,7 +326,7 @@ func (c *Collection) DeleteMany(ctx context.Context, filter Filter) (DeleteResul
 }
 
 // CountDocuments returns the number of documents matching filter.
-func (c *Collection) CountDocuments(ctx context.Context, filter Filter) (int64, error) {
+func (c *mongoCollection) CountDocuments(ctx context.Context, filter Filter) (int64, error) {
 	return c.inner.CountDocuments(ctx, filter.raw)
 }
 
@@ -313,7 +334,7 @@ func (c *Collection) CountDocuments(ctx context.Context, filter Filter) (int64, 
 // pipeline must be a JSON array of stage documents, e.g.:
 //
 //	[{"$match":{"status":"active"}},{"$group":{"_id":"$city","count":{"$sum":1}}}]
-func (c *Collection) Aggregate(ctx context.Context, pipeline []byte) ([][]byte, error) {
+func (c *mongoCollection) Aggregate(ctx context.Context, pipeline []byte) ([][]byte, error) {
 	var stages []bson.D
 	if err := bson.UnmarshalExtJSON(pipeline, false, &stages); err != nil {
 		return nil, fmt.Errorf("%w: %s", ErrInvalidJSON, err)
@@ -369,7 +390,7 @@ type IndexKey struct {
 
 // CreateIndex creates an index on one or more fields and returns the index name.
 // Pass a single IndexKey for a single-field index, or multiple for a compound index.
-func (c *Collection) CreateIndex(ctx context.Context, keys []IndexKey, opts ...IndexOption) (string, error) {
+func (c *mongoCollection) CreateIndex(ctx context.Context, keys []IndexKey, opts ...IndexOption) (string, error) {
 	io := &indexOptions{}
 	for _, o := range opts {
 		o(io)
@@ -399,12 +420,12 @@ func (c *Collection) CreateIndex(ctx context.Context, keys []IndexKey, opts ...I
 }
 
 // DropIndex drops an index by name.
-func (c *Collection) DropIndex(ctx context.Context, name string) error {
+func (c *mongoCollection) DropIndex(ctx context.Context, name string) error {
 	return c.inner.Indexes().DropOne(ctx, name)
 }
 
 // ListIndexes returns all indexes on the collection as a slice of JSON documents.
-func (c *Collection) ListIndexes(ctx context.Context) ([][]byte, error) {
+func (c *mongoCollection) ListIndexes(ctx context.Context) ([][]byte, error) {
 	cur, err := c.inner.Indexes().List(ctx)
 	if err != nil {
 		return nil, err
@@ -430,7 +451,7 @@ func (c *Collection) ListIndexes(ctx context.Context) ([][]byte, error) {
 }
 
 // Drop removes the collection from the database.
-func (c *Collection) Drop(ctx context.Context) error {
+func (c *mongoCollection) Drop(ctx context.Context) error {
 	return c.inner.Drop(ctx)
 }
 

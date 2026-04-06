@@ -59,8 +59,8 @@ func (c *Client) Disconnect(ctx context.Context) error {
 }
 
 // Collection returns a handle for the named collection.
-func (c *Client) Collection(name string) *Collection {
-	return &Collection{
+func (c *Client) Collection(name string) Collection {
+	return &mongoCollection{
 		inner: c.inner.Database(c.dbName).Collection(name),
 	}
 }
