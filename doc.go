@@ -36,10 +36,7 @@
 //	res, err := col.InsertOne(ctx, []byte(`{"name":"Alice","age":30}`))
 //	fmt.Println(res.InsertedID) // hex ObjectID string, e.g. "507f1f77bcf86cd799439011"
 //
-//	many, err := col.InsertMany(ctx, [][]byte{
-//	    []byte(`{"name":"Bob"}`),
-//	    []byte(`{"name":"Carol"}`),
-//	})
+//	many, err := col.InsertMany(ctx, []byte(`[{"name":"Bob"},{"name":"Carol"}]`))
 //	fmt.Println(many.InsertedIDs) // []string of hex IDs
 //
 // To insert from a struct or map, use mongopher.Marshal:

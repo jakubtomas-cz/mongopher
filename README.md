@@ -154,10 +154,7 @@ res, err := col.InsertOne(ctx, []byte(`{"name":"Alice","age":30}`))
 fmt.Println(res.InsertedID) // plain hex string
 
 // Multiple documents
-res, err := col.InsertMany(ctx, [][]byte{
-    []byte(`{"name":"Alice"}`),
-    []byte(`{"name":"Bob"}`),
-})
+res, err := col.InsertMany(ctx, []byte(`[{"name":"Alice"},{"name":"Bob"}]`))
 fmt.Println(res.InsertedIDs) // []string{"507f...", "507f..."}
 ```
 

@@ -57,12 +57,7 @@ func TestInsertOne(t *testing.T) {
 
 func TestInsertMany(t *testing.T) {
 	c := col(t)
-	docs := [][]byte{
-		[]byte(`{"name":"Alice"}`),
-		[]byte(`{"name":"Bob"}`),
-		[]byte(`{"name":"Carol"}`),
-	}
-	res, err := c.InsertMany(context.Background(), docs)
+	res, err := c.InsertMany(context.Background(), []byte(`[{"name":"Alice"},{"name":"Bob"},{"name":"Carol"}]`))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -119,12 +114,7 @@ func TestFind(t *testing.T) {
 	ctx := context.Background()
 	c := col(t)
 
-	docs := [][]byte{
-		[]byte(`{"role":"admin","name":"Alice"}`),
-		[]byte(`{"role":"admin","name":"Bob"}`),
-		[]byte(`{"role":"user","name":"Carol"}`),
-	}
-	if _, err := c.InsertMany(ctx, docs); err != nil {
+	if _, err := c.InsertMany(ctx, []byte(`[{"role":"admin","name":"Alice"},{"role":"admin","name":"Bob"},{"role":"user","name":"Carol"}]`)); err != nil {
 		t.Fatal(err)
 	}
 
@@ -198,12 +188,7 @@ func TestUpdateMany(t *testing.T) {
 	ctx := context.Background()
 	c := col(t)
 
-	docs := [][]byte{
-		[]byte(`{"role":"admin","score":10}`),
-		[]byte(`{"role":"admin","score":10}`),
-		[]byte(`{"role":"user","score":10}`),
-	}
-	if _, err := c.InsertMany(ctx, docs); err != nil {
+	if _, err := c.InsertMany(ctx, []byte(`[{"role":"admin","score":10},{"role":"admin","score":10},{"role":"user","score":10}]`)); err != nil {
 		t.Fatal(err)
 	}
 
@@ -233,12 +218,7 @@ func TestDeleteMany(t *testing.T) {
 	ctx := context.Background()
 	c := col(t)
 
-	docs := [][]byte{
-		[]byte(`{"role":"admin"}`),
-		[]byte(`{"role":"admin"}`),
-		[]byte(`{"role":"user"}`),
-	}
-	if _, err := c.InsertMany(ctx, docs); err != nil {
+	if _, err := c.InsertMany(ctx, []byte(`[{"role":"admin"},{"role":"admin"},{"role":"user"}]`)); err != nil {
 		t.Fatal(err)
 	}
 
@@ -264,12 +244,7 @@ func TestCountDocuments(t *testing.T) {
 	ctx := context.Background()
 	c := col(t)
 
-	docs := [][]byte{
-		[]byte(`{"type":"a"}`),
-		[]byte(`{"type":"a"}`),
-		[]byte(`{"type":"b"}`),
-	}
-	if _, err := c.InsertMany(ctx, docs); err != nil {
+	if _, err := c.InsertMany(ctx, []byte(`[{"type":"a"},{"type":"a"},{"type":"b"}]`)); err != nil {
 		t.Fatal(err)
 	}
 
@@ -309,12 +284,7 @@ func TestFind_EmptyFilter(t *testing.T) {
 	ctx := context.Background()
 	c := col(t)
 
-	docs := [][]byte{
-		[]byte(`{"n":1}`),
-		[]byte(`{"n":2}`),
-		[]byte(`{"n":3}`),
-	}
-	if _, err := c.InsertMany(ctx, docs); err != nil {
+	if _, err := c.InsertMany(ctx, []byte(`[{"n":1},{"n":2},{"n":3}]`)); err != nil {
 		t.Fatal(err)
 	}
 
@@ -365,12 +335,7 @@ func TestFind_WithSort(t *testing.T) {
 	ctx := context.Background()
 	c := col(t)
 
-	docs := [][]byte{
-		[]byte(`{"score":3}`),
-		[]byte(`{"score":1}`),
-		[]byte(`{"score":2}`),
-	}
-	if _, err := c.InsertMany(ctx, docs); err != nil {
+	if _, err := c.InsertMany(ctx, []byte(`[{"score":3},{"score":1},{"score":2}]`)); err != nil {
 		t.Fatal(err)
 	}
 
@@ -409,13 +374,7 @@ func TestFind_WithSort_MultiField(t *testing.T) {
 	ctx := context.Background()
 	c := col(t)
 
-	docs := [][]byte{
-		[]byte(`{"role":"admin","name":"Charlie"}`),
-		[]byte(`{"role":"admin","name":"Alice"}`),
-		[]byte(`{"role":"user","name":"Bob"}`),
-		[]byte(`{"role":"user","name":"Alice"}`),
-	}
-	if _, err := c.InsertMany(ctx, docs); err != nil {
+	if _, err := c.InsertMany(ctx, []byte(`[{"role":"admin","name":"Charlie"},{"role":"admin","name":"Alice"},{"role":"user","name":"Bob"},{"role":"user","name":"Alice"}]`)); err != nil {
 		t.Fatal(err)
 	}
 
@@ -730,8 +689,7 @@ func TestDrop(t *testing.T) {
 	ctx := context.Background()
 	c := col(t)
 
-	docs := [][]byte{[]byte(`{"x":1}`), []byte(`{"x":2}`)}
-	if _, err := c.InsertMany(ctx, docs); err != nil {
+	if _, err := c.InsertMany(ctx, []byte(`[{"x":1},{"x":2}]`)); err != nil {
 		t.Fatal(err)
 	}
 
@@ -750,12 +708,7 @@ func TestDrop(t *testing.T) {
 
 func TestInsertMany_InvalidDoc(t *testing.T) {
 	c := col(t)
-	docs := [][]byte{
-		[]byte(`{"name":"Alice"}`),
-		[]byte(`not json`),
-		[]byte(`{"name":"Carol"}`),
-	}
-	_, err := c.InsertMany(context.Background(), docs)
+	_, err := c.InsertMany(context.Background(), []byte(`[{"name":"Alice"},not json,{"name":"Carol"}]`))
 	if !errors.Is(err, mongopher.ErrInvalidJSON) {
 		t.Fatalf("expected ErrInvalidJSON, got %v", err)
 	}
@@ -1117,14 +1070,7 @@ func TestAggregate_GroupAndCount(t *testing.T) {
 	ctx := context.Background()
 	c := col(t)
 
-	docs := [][]byte{
-		[]byte(`{"city":"Prague","status":"active"}`),
-		[]byte(`{"city":"Prague","status":"active"}`),
-		[]byte(`{"city":"Brno","status":"active"}`),
-		[]byte(`{"city":"Brno","status":"inactive"}`),
-		[]byte(`{"city":"Brno","status":"inactive"}`),
-	}
-	if _, err := c.InsertMany(ctx, docs); err != nil {
+	if _, err := c.InsertMany(ctx, []byte(`[{"city":"Prague","status":"active"},{"city":"Prague","status":"active"},{"city":"Brno","status":"active"},{"city":"Brno","status":"inactive"},{"city":"Brno","status":"inactive"}]`)); err != nil {
 		t.Fatal(err)
 	}
 
@@ -1159,12 +1105,7 @@ func TestAggregate_MatchAndProject(t *testing.T) {
 	ctx := context.Background()
 	c := col(t)
 
-	docs := [][]byte{
-		[]byte(`{"name":"Alice","score":80}`),
-		[]byte(`{"name":"Bob","score":40}`),
-		[]byte(`{"name":"Carol","score":95}`),
-	}
-	if _, err := c.InsertMany(ctx, docs); err != nil {
+	if _, err := c.InsertMany(ctx, []byte(`[{"name":"Alice","score":80},{"name":"Bob","score":40},{"name":"Carol","score":95}]`)); err != nil {
 		t.Fatal(err)
 	}
 
@@ -1663,12 +1604,7 @@ func TestBulkUpdate(t *testing.T) {
 	ctx := context.Background()
 	c := col(t)
 
-	docs := [][]byte{
-		[]byte(`{"name":"Alice","score":10}`),
-		[]byte(`{"name":"Bob","score":10}`),
-		[]byte(`{"name":"Carol","score":10}`),
-	}
-	if _, err := c.InsertMany(ctx, docs); err != nil {
+	if _, err := c.InsertMany(ctx, []byte(`[{"name":"Alice","score":10},{"name":"Bob","score":10},{"name":"Carol","score":10}]`)); err != nil {
 		t.Fatal(err)
 	}
 
@@ -1743,12 +1679,7 @@ func TestBulkDelete(t *testing.T) {
 	ctx := context.Background()
 	c := col(t)
 
-	docs := [][]byte{
-		[]byte(`{"name":"Alice"}`),
-		[]byte(`{"name":"Bob"}`),
-		[]byte(`{"name":"Carol"}`),
-	}
-	if _, err := c.InsertMany(ctx, docs); err != nil {
+	if _, err := c.InsertMany(ctx, []byte(`[{"name":"Alice"},{"name":"Bob"},{"name":"Carol"}]`)); err != nil {
 		t.Fatal(err)
 	}
 

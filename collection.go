@@ -2,6 +2,7 @@ package mongopher
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 
@@ -13,7 +14,7 @@ import (
 // Collection is the interface for all collection operations.
 type Collection interface {
 	InsertOne(ctx context.Context, doc []byte) (InsertResult, error)
-	InsertMany(ctx context.Context, docs [][]byte) (InsertManyResult, error)
+	InsertMany(ctx context.Context, docs []byte) (InsertManyResult, error)
 	FindOne(ctx context.Context, filter Filter) ([]byte, error)
 	Find(ctx context.Context, filter Filter, opts ...FindOption) ([]byte, error)
 	UpdateOne(ctx context.Context, filter Filter, update []byte, opts ...UpdateOption) (UpdateResult, error)
@@ -109,9 +110,14 @@ func (c *mongoCollection) InsertOne(ctx context.Context, doc []byte) (InsertResu
 }
 
 // InsertMany inserts multiple JSON documents and returns their inserted IDs.
-func (c *mongoCollection) InsertMany(ctx context.Context, docs [][]byte) (InsertManyResult, error) {
-	bsons := make([]interface{}, len(docs))
-	for i, doc := range docs {
+// docs must be a JSON array of document objects, e.g. [{"name":"Alice"},{"name":"Bob"}].
+func (c *mongoCollection) InsertMany(ctx context.Context, docs []byte) (InsertManyResult, error) {
+	var rawDocs []json.RawMessage
+	if err := json.Unmarshal(docs, &rawDocs); err != nil {
+		return InsertManyResult{}, fmt.Errorf("%w: %s", ErrInvalidJSON, err)
+	}
+	bsons := make([]interface{}, len(rawDocs))
+	for i, doc := range rawDocs {
 		d, err := jsonToBSON(doc)
 		if err != nil {
 			return InsertManyResult{}, fmt.Errorf("doc[%d]: %w", i, err)
