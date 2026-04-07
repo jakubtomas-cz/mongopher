@@ -26,6 +26,26 @@ func bsonToJSON(doc bson.D) ([]byte, error) {
 	return flattenID(data), nil
 }
 
+// Unmarshal decodes a JSON array returned by Find, Aggregate, or ListIndexes into a slice of maps.
+//
+//	docs, _ := col.Find(ctx, filter)
+//	items, err := mongopher.Unmarshal(docs)
+func Unmarshal(docs []byte) ([]map[string]any, error) {
+	return UnmarshalAs[map[string]any](docs)
+}
+
+// UnmarshalAs decodes a JSON array into a typed slice.
+//
+//	type User struct { Name string `json:"name"` }
+//	users, err := mongopher.UnmarshalAs[User](docs)
+func UnmarshalAs[T any](docs []byte) ([]T, error) {
+	var result []T
+	if err := json.Unmarshal(docs, &result); err != nil {
+		return nil, fmt.Errorf("%w: %s", ErrInvalidJSON, err)
+	}
+	return result, nil
+}
+
 // flattenID replaces a top-level "_id":{"$oid":"<hex>"} with "_id":"<hex>".
 // If _id is not an Extended JSON object or is absent the data is returned unchanged.
 func flattenID(data []byte) []byte {

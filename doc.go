@@ -87,12 +87,23 @@
 //	    mongopher.WithSkip(0),
 //	    mongopher.WithSort("name", mongopher.ASC),
 //	)
-//	for _, d := range docs {
-//	    fmt.Println(string(d))
-//	}
+//	fmt.Println(string(docs))
+//	// [{"_id":"507f...","name":"Alice","age":30},{"_id":"...","name":"Bob","age":25}]
 //
-// Find returns nil (not an error) when no documents match. Both len(docs) == 0
-// and range docs are safe.
+// Find always returns a valid JSON array. An empty result set is [], never nil.
+//
+// docs is a []byte JSON array. Use Unmarshal or UnmarshalAs to decode it into Go values:
+//
+//	// []map[string]any — no type parameter needed
+//	items, err := mongopher.Unmarshal(docs)
+//	fmt.Println(items[0]["name"]) // Alice
+//
+//	// Typed slice
+//	type User struct { Name string `json:"name"` }
+//	users, err := mongopher.UnmarshalAs[User](docs)
+//	fmt.Println(users[0].Name) // Alice
+//
+// Both helpers work identically with results from Find, Aggregate, and ListIndexes.
 //
 // WithSort can be applied multiple times for multi-field sorting:
 //
@@ -218,17 +229,16 @@
 //	// Drop an index by name
 //	err = col.DropIndex(ctx, name)
 //
-//	// List all indexes as JSON documents
+//	// List all indexes — returns a JSON array
 //	indexes, err := col.ListIndexes(ctx)
-//	for _, idx := range indexes {
-//	    fmt.Println(string(idx))
-//	}
+//	fmt.Println(string(indexes))
+//	// [{"v":2,"key":{"_id":1},"name":"_id_"},{"v":2,"key":{"email":1},"name":"email_1","unique":true}]
 //
 // # Aggregation
 //
 // Aggregate runs a MongoDB aggregation pipeline. The pipeline is a JSON array
 // of stage documents; each stage transforms the documents passing through it.
-// Returns nil (not an error) when the pipeline produces no results.
+// Always returns a valid JSON array; an empty result is [], never nil.
 //
 //	pipeline := []byte(`[
 //	    {"$match": {"status": "active"}},
@@ -237,9 +247,8 @@
 //	]`)
 //
 //	docs, err := col.Aggregate(ctx, pipeline)
-//	for _, doc := range docs {
-//	    fmt.Println(string(doc)) // {"_id":"Prague","count":42}
-//	}
+//	fmt.Println(string(docs))
+//	// [{"_id":"Prague","count":42},{"_id":"Berlin","count":31}]
 //
 // Common stages: $match (filter), $project (reshape), $group (summarise),
 // $sort, $limit, $skip, $lookup (join), $unwind (flatten arrays).

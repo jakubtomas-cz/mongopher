@@ -198,14 +198,33 @@ mongopher uses standard JSON unmarshalling internally, which represents all JSON
 // Single document — returns ErrNoDocuments if nothing matches
 doc, err := col.FindOne(ctx, filter)
 
-// All matching documents
+// All matching documents — returns []byte containing a JSON array
 docs, err := col.Find(ctx, filter)
-for _, doc := range docs {
-    fmt.Println(string(doc))
-}
+fmt.Println(string(docs))
+// [{"_id":"507f1f77bcf86cd799439011","name":"Alice","age":30},{"_id":"...","name":"Bob","age":25}]
 ```
 
-`Find` returns `nil` when there are no matching documents (not an error). Both `len(docs) == 0` and `range docs` are safe to use.
+`Find` always returns a valid JSON array. An empty result set is `[]`, never `nil`.
+
+#### Decoding results
+
+`docs` is a `[]byte` JSON array. Use `Unmarshal` to decode it into a slice of maps, or `UnmarshalAs` for a typed slice:
+
+```go
+// []map[string]any — no type parameter needed
+items, err := mongopher.Unmarshal(docs)
+fmt.Println(items[0]["name"]) // Alice
+
+// Typed slice
+type User struct {
+    Name string `json:"name"`
+    Age  int    `json:"age"`
+}
+users, err := mongopher.UnmarshalAs[User](docs)
+fmt.Println(users[0].Name) // Alice
+```
+
+Both helpers work identically with results from `Find`, `Aggregate`, and `ListIndexes`.
 
 `Find` accepts optional modifiers:
 
@@ -381,11 +400,10 @@ name, err := col.CreateIndex(ctx, []mongopher.IndexKey{
 // Drop an index by name
 err = col.DropIndex(ctx, name)
 
-// List all indexes
+// List all indexes — returns a JSON array
 indexes, err := col.ListIndexes(ctx)
-for _, idx := range indexes {
-    fmt.Println(string(idx))
-}
+fmt.Println(string(indexes))
+// [{"v":2,"key":{"_id":1},"name":"_id_"},{"v":2,"key":{"email":1},"name":"email_1","unique":true}]
 ```
 
 ## Aggregation
@@ -400,12 +418,11 @@ pipeline := []byte(`[
 ]`)
 
 docs, err := col.Aggregate(ctx, pipeline)
-for _, doc := range docs {
-    fmt.Println(string(doc)) // {"_id":"Prague","count":42}
-}
+fmt.Println(string(docs))
+// [{"_id":"Prague","count":42},{"_id":"Berlin","count":31}]
 ```
 
-`Aggregate` returns `nil` (not an error) when the pipeline produces no results.
+`Aggregate` always returns a valid JSON array. An empty pipeline result is `[]`, never `nil`.
 
 ### Common stages
 

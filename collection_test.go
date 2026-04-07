@@ -133,8 +133,8 @@ func TestFind(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(results) != 2 {
-		t.Fatalf("expected 2 results, got %d", len(results))
+	if items := parseArray(t, results); len(items) != 2 {
+		t.Fatalf("expected 2 results, got %d", len(items))
 	}
 }
 
@@ -220,7 +220,7 @@ func TestUpdateMany(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, doc := range results {
+	for _, doc := range parseArray(t, results) {
 		var m map[string]any
 		json.Unmarshal(doc, &m)
 		if m["score"] != float64(99) {
@@ -300,8 +300,8 @@ func TestFind_Empty(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(results) != 0 {
-		t.Fatalf("expected empty slice, got %d results", len(results))
+	if items := parseArray(t, results); len(items) != 0 {
+		t.Fatalf("expected empty array, got %d results", len(items))
 	}
 }
 
@@ -322,8 +322,8 @@ func TestFind_EmptyFilter(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(results) != 3 {
-		t.Fatalf("expected 3 results, got %d", len(results))
+	if items := parseArray(t, results); len(items) != 3 {
+		t.Fatalf("expected 3 results, got %d", len(items))
 	}
 }
 
@@ -339,8 +339,8 @@ func TestFind_WithLimit(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(results) != 3 {
-		t.Fatalf("expected 3 results with limit, got %d", len(results))
+	if items := parseArray(t, results); len(items) != 3 {
+		t.Fatalf("expected 3 results with limit, got %d", len(items))
 	}
 }
 
@@ -356,8 +356,8 @@ func TestFind_WithSkip(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(results) != 2 {
-		t.Fatalf("expected 2 results after skip, got %d", len(results))
+	if items := parseArray(t, results); len(items) != 2 {
+		t.Fatalf("expected 2 results after skip, got %d", len(items))
 	}
 }
 
@@ -379,10 +379,11 @@ func TestFind_WithSort(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	scores := make([]float64, len(results))
-	for i, doc := range results {
+	items := parseArray(t, results)
+	scores := make([]float64, len(items))
+	for i, raw := range items {
 		var m map[string]any
-		json.Unmarshal(doc, &m)
+		json.Unmarshal(raw, &m)
 		scores[i] = m["score"].(float64)
 	}
 	if scores[0] != 1 || scores[1] != 2 || scores[2] != 3 {
@@ -394,9 +395,9 @@ func TestFind_WithSort(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for i, doc := range results {
+	for i, raw := range parseArray(t, results) {
 		var m map[string]any
-		json.Unmarshal(doc, &m)
+		json.Unmarshal(raw, &m)
 		scores[i] = m["score"].(float64)
 	}
 	if scores[0] != 3 || scores[1] != 2 || scores[2] != 1 {
@@ -425,8 +426,9 @@ func TestFind_WithSort_MultiField(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(results) != 4 {
-		t.Fatalf("expected 4 results, got %d", len(results))
+	items := parseArray(t, results)
+	if len(items) != 4 {
+		t.Fatalf("expected 4 results, got %d", len(items))
 	}
 
 	type doc struct {
@@ -439,7 +441,7 @@ func TestFind_WithSort_MultiField(t *testing.T) {
 		{"user", "Alice"},
 		{"user", "Bob"},
 	}
-	for i, raw := range results {
+	for i, raw := range items {
 		var got doc
 		if err := json.Unmarshal(raw, &got); err != nil {
 			t.Fatal(err)
@@ -819,11 +821,20 @@ func TestFilterFromJSON_CustomStringID(t *testing.T) {
 	}
 }
 
-func names(docs [][]byte) []string {
+// parseArray is a test helper that unmarshals a JSON array into individual raw documents.
+func parseArray(t *testing.T, docs []byte) []json.RawMessage {
+	t.Helper()
+	items, err := mongopher.UnmarshalAs[json.RawMessage](docs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return items
+}
+
+func names(docs []byte) []string {
+	items, _ := mongopher.Unmarshal(docs)
 	var out []string
-	for _, d := range docs {
-		var m map[string]any
-		json.Unmarshal(d, &m)
+	for _, m := range items {
 		if n, ok := m["name"].(string); ok {
 			out = append(out, n)
 		}
@@ -1073,7 +1084,6 @@ func TestFilterByID(t *testing.T) {
 	}
 }
 
-
 func TestIDFlattening(t *testing.T) {
 	ctx := context.Background()
 	c := col(t)
@@ -1126,23 +1136,22 @@ func TestAggregate_GroupAndCount(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(results) != 2 {
-		t.Fatalf("expected 2 groups, got %d", len(results))
-	}
-
 	type group struct {
 		ID    string  `json:"_id"`
 		Count float64 `json:"count"`
 	}
-	var first, second group
-	json.Unmarshal(results[0], &first)
-	json.Unmarshal(results[1], &second)
-
-	if first.ID != "Brno" || first.Count != 3 {
-		t.Fatalf("expected Brno=3, got %s=%v", first.ID, first.Count)
+	groups, err := mongopher.UnmarshalAs[group](results)
+	if err != nil {
+		t.Fatal(err)
 	}
-	if second.ID != "Prague" || second.Count != 2 {
-		t.Fatalf("expected Prague=2, got %s=%v", second.ID, second.Count)
+	if len(groups) != 2 {
+		t.Fatalf("expected 2 groups, got %d", len(groups))
+	}
+	if groups[0].ID != "Brno" || groups[0].Count != 3 {
+		t.Fatalf("expected Brno=3, got %s=%v", groups[0].ID, groups[0].Count)
+	}
+	if groups[1].ID != "Prague" || groups[1].Count != 2 {
+		t.Fatalf("expected Prague=2, got %s=%v", groups[1].ID, groups[1].Count)
 	}
 }
 
@@ -1167,10 +1176,11 @@ func TestAggregate_MatchAndProject(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(results) != 2 {
-		t.Fatalf("expected 2 results after $match, got %d", len(results))
+	items := parseArray(t, results)
+	if len(items) != 2 {
+		t.Fatalf("expected 2 results after $match, got %d", len(items))
 	}
-	for _, r := range results {
+	for _, r := range items {
 		var doc map[string]any
 		json.Unmarshal(r, &doc)
 		if _, hasID := doc["_id"]; hasID {
@@ -1195,8 +1205,8 @@ func TestAggregate_EmptyResult(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if results != nil {
-		t.Fatalf("expected nil for empty aggregate result, got %v", results)
+	if items := parseArray(t, results); len(items) != 0 {
+		t.Fatalf("expected empty aggregate result, got %d items", len(items))
 	}
 }
 
@@ -1313,11 +1323,12 @@ func TestListIndexes(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	idxItems := parseArray(t, indexes)
 	// Expect at least the _id index and our new one
-	if len(indexes) < 2 {
-		t.Fatalf("expected at least 2 indexes, got %d", len(indexes))
+	if len(idxItems) < 2 {
+		t.Fatalf("expected at least 2 indexes, got %d", len(idxItems))
 	}
-	for _, idx := range indexes {
+	for _, idx := range idxItems {
 		var doc map[string]any
 		if err := json.Unmarshal(idx, &doc); err != nil {
 			t.Fatalf("index is not valid JSON: %v", err)
@@ -1354,8 +1365,9 @@ func TestDropIndex(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(after) != len(before)-1 {
-		t.Fatalf("expected %d indexes after drop, got %d", len(before)-1, len(after))
+	beforeItems, afterItems := parseArray(t, before), parseArray(t, after)
+	if len(afterItems) != len(beforeItems)-1 {
+		t.Fatalf("expected %d indexes after drop, got %d", len(beforeItems)-1, len(afterItems))
 	}
 }
 

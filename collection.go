@@ -15,7 +15,7 @@ type Collection interface {
 	InsertOne(ctx context.Context, doc []byte) (InsertResult, error)
 	InsertMany(ctx context.Context, docs [][]byte) (InsertManyResult, error)
 	FindOne(ctx context.Context, filter Filter) ([]byte, error)
-	Find(ctx context.Context, filter Filter, opts ...FindOption) ([][]byte, error)
+	Find(ctx context.Context, filter Filter, opts ...FindOption) ([]byte, error)
 	UpdateOne(ctx context.Context, filter Filter, update []byte, opts ...UpdateOption) (UpdateResult, error)
 	UpdateMany(ctx context.Context, filter Filter, update []byte, opts ...UpdateOption) (UpdateResult, error)
 	ReplaceOne(ctx context.Context, filter Filter, replacement []byte, opts ...UpdateOption) (UpdateResult, error)
@@ -26,10 +26,10 @@ type Collection interface {
 	BulkUpdate(ctx context.Context, ops []UpdateSpec) (UpdateResult, error)
 	BulkDelete(ctx context.Context, filters []Filter) (DeleteResult, error)
 	CountDocuments(ctx context.Context, filter Filter) (int64, error)
-	Aggregate(ctx context.Context, pipeline []byte) ([][]byte, error)
+	Aggregate(ctx context.Context, pipeline []byte) ([]byte, error)
 	CreateIndex(ctx context.Context, keys []IndexKey, opts ...IndexOption) (string, error)
 	DropIndex(ctx context.Context, name string) error
-	ListIndexes(ctx context.Context) ([][]byte, error)
+	ListIndexes(ctx context.Context) ([]byte, error)
 	Drop(ctx context.Context) error
 	WithTransaction(ctx context.Context, fn func(ctx context.Context) error) error
 	Watch(ctx context.Context, opts ...WatchOption) (ChangeStream, error)
@@ -143,8 +143,8 @@ func (c *mongoCollection) FindOne(ctx context.Context, filter Filter) ([]byte, e
 	return bsonToJSON(raw)
 }
 
-// Find returns all documents matching filter as a slice of JSON.
-func (c *mongoCollection) Find(ctx context.Context, filter Filter, opts ...FindOption) ([][]byte, error) {
+// Find returns all documents matching filter as a JSON array.
+func (c *mongoCollection) Find(ctx context.Context, filter Filter, opts ...FindOption) ([]byte, error) {
 	fo := &findOptions{}
 	for _, o := range opts {
 		o(fo)
@@ -167,7 +167,7 @@ func (c *mongoCollection) Find(ctx context.Context, filter Filter, opts ...FindO
 	}
 	defer cur.Close(ctx)
 
-	var results [][]byte
+	var docs [][]byte
 	for cur.Next(ctx) {
 		var raw bson.D
 		if err := cur.Decode(&raw); err != nil {
@@ -177,12 +177,12 @@ func (c *mongoCollection) Find(ctx context.Context, filter Filter, opts ...FindO
 		if err != nil {
 			return nil, err
 		}
-		results = append(results, data)
+		docs = append(docs, data)
 	}
 	if err := cur.Err(); err != nil {
 		return nil, err
 	}
-	return results, nil
+	return joinJSONArray(docs), nil
 }
 
 // UpdateOption configures an Update or Replace call.
@@ -375,7 +375,7 @@ func (c *mongoCollection) CountDocuments(ctx context.Context, filter Filter) (in
 // pipeline must be a JSON array of stage documents, e.g.:
 //
 //	[{"$match":{"status":"active"}},{"$group":{"_id":"$city","count":{"$sum":1}}}]
-func (c *mongoCollection) Aggregate(ctx context.Context, pipeline []byte) ([][]byte, error) {
+func (c *mongoCollection) Aggregate(ctx context.Context, pipeline []byte) ([]byte, error) {
 	var stages []bson.D
 	if err := bson.UnmarshalExtJSON(pipeline, false, &stages); err != nil {
 		return nil, fmt.Errorf("%w: %s", ErrInvalidJSON, err)
@@ -387,7 +387,7 @@ func (c *mongoCollection) Aggregate(ctx context.Context, pipeline []byte) ([][]b
 	}
 	defer cur.Close(ctx)
 
-	var results [][]byte
+	var docs [][]byte
 	for cur.Next(ctx) {
 		var raw bson.D
 		if err := cur.Decode(&raw); err != nil {
@@ -397,12 +397,12 @@ func (c *mongoCollection) Aggregate(ctx context.Context, pipeline []byte) ([][]b
 		if err != nil {
 			return nil, err
 		}
-		results = append(results, data)
+		docs = append(docs, data)
 	}
 	if err := cur.Err(); err != nil {
 		return nil, err
 	}
-	return results, nil
+	return joinJSONArray(docs), nil
 }
 
 // IndexOption configures a CreateIndex call.
@@ -465,15 +465,15 @@ func (c *mongoCollection) DropIndex(ctx context.Context, name string) error {
 	return c.inner.Indexes().DropOne(ctx, name)
 }
 
-// ListIndexes returns all indexes on the collection as a slice of JSON documents.
-func (c *mongoCollection) ListIndexes(ctx context.Context) ([][]byte, error) {
+// ListIndexes returns all indexes on the collection as a JSON array.
+func (c *mongoCollection) ListIndexes(ctx context.Context) ([]byte, error) {
 	cur, err := c.inner.Indexes().List(ctx)
 	if err != nil {
 		return nil, err
 	}
 	defer cur.Close(ctx)
 
-	var results [][]byte
+	var docs [][]byte
 	for cur.Next(ctx) {
 		var raw bson.D
 		if err := cur.Decode(&raw); err != nil {
@@ -483,12 +483,12 @@ func (c *mongoCollection) ListIndexes(ctx context.Context) ([][]byte, error) {
 		if err != nil {
 			return nil, err
 		}
-		results = append(results, data)
+		docs = append(docs, data)
 	}
 	if err := cur.Err(); err != nil {
 		return nil, err
 	}
-	return results, nil
+	return joinJSONArray(docs), nil
 }
 
 // Drop removes the collection from the database.
@@ -547,4 +547,24 @@ func objectIDToString(id any) string {
 		return oid.Hex()
 	}
 	return fmt.Sprintf("%v", id)
+}
+
+// joinJSONArray serialises a slice of raw JSON documents into a JSON array.
+func joinJSONArray(docs [][]byte) []byte {
+	size := 2
+	for i, d := range docs {
+		size += len(d)
+		if i > 0 {
+			size++
+		}
+	}
+	buf := make([]byte, 0, size)
+	buf = append(buf, '[')
+	for i, d := range docs {
+		if i > 0 {
+			buf = append(buf, ',')
+		}
+		buf = append(buf, d...)
+	}
+	return append(buf, ']')
 }
