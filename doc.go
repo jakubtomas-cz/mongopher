@@ -44,6 +44,14 @@
 //	docs, err := col.Find(ctx, mongopher.EmptyFilter())
 //	users, err := mongopher.UnmarshalAs[[]User](docs)
 //
+// # Example
+//
+// The examples/todo-server directory contains a fully working REST API —
+// create, list, get, update, and delete todos — backed by MongoDB.
+// It demonstrates the zero-ceremony pattern end to end: request bodies go
+// straight into the database, query results go straight back out.
+// Each handler has curl examples in its godoc comment.
+//
 // # Connecting
 //
 // Connect dials MongoDB and pings the server to verify connectivity.
@@ -413,6 +421,16 @@
 //
 // Common use cases: automatic timestamps, audit logging, input validation,
 // cache invalidation, instrumentation.
+//
+// # Raw driver access
+//
+// Client.Driver returns the underlying *mongo.Client for anything not covered
+// by mongopher — advanced queries, admin commands, or driver features that
+// haven't been wrapped yet:
+//
+//	raw := client.Driver()
+//	raw.Database("mydb").RunCommand(ctx, bson.D{{Key: "ping", Value: 1}})
+//	raw.Database("mydb").Collection("users").FindOne(ctx, bson.D{})
 //
 // # _id handling
 //

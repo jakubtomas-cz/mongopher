@@ -16,7 +16,7 @@ Pass JSON in, get JSON back. No struct tags, no code generation, no ORM ceremony
 - Sorting, pagination, and multi-field ordering
 - ObjectIDs as plain hex strings — no Extended JSON noise
 - Change streams for real-time insert/update/delete notifications
-- Thin wrapper over the official MongoDB Go driver — no magic, full driver access when needed
+- Thin wrapper over the official MongoDB Go driver — no magic, escape to the raw driver via `client.Driver()` when needed
 - Thoroughly unit tested against a real MongoDB instance
 
 ## Installation
@@ -100,6 +100,17 @@ user, err := mongopher.UnmarshalAs[User](doc)
 docs, err := col.Find(ctx, mongopher.EmptyFilter())
 users, err := mongopher.UnmarshalAs[[]User](docs)
 ```
+
+## Example
+
+[`examples/todo-server`](examples/todo-server/main.go) is a fully working REST API — create, list, get, update, and delete todos — backed by MongoDB. It shows the zero-ceremony pattern end to end: request bodies go straight into the database, query results go straight back out.
+
+```bash
+make mongo-up
+make todo-server
+```
+
+Each handler has curl examples in its godoc comment.
 
 ## Connecting
 
@@ -555,6 +566,16 @@ col.FindOne(ctx, filter)                        // delegates to the underlying c
 ```
 
 Common use cases: automatic timestamps, audit logging, input validation, cache invalidation, instrumentation.
+
+## Raw driver access
+
+`client.Driver()` returns the underlying `*mongo.Client` for anything not covered by mongopher — advanced queries, admin commands, or driver features that haven't been wrapped yet:
+
+```go
+raw := client.Driver()
+raw.Database("mydb").RunCommand(ctx, bson.D{{Key: "ping", Value: 1}})
+raw.Database("mydb").Collection("users").FindOne(ctx, bson.D{})
+```
 
 ## Replica sets and sharded clusters
 

@@ -57,6 +57,11 @@ func runWithTransaction(ctx context.Context, client *mongo.Client, fn func(ctx c
 	return nil
 }
 
+// Driver returns the underlying *mongo.Client for operations not covered by mongopher.
+func (c *Client) Driver() *mongo.Client {
+	return c.inner
+}
+
 // Disconnect closes the underlying connection.
 func (c *Client) Disconnect(ctx context.Context) error {
 	return c.inner.Disconnect(ctx)

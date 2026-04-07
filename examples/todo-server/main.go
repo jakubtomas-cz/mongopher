@@ -37,6 +37,10 @@ func main() {
 }
 
 // listTodos returns all todos. Pass ?done=true or ?done=false to filter by status.
+//
+//	curl http://localhost:8080/todos
+//	curl "http://localhost:8080/todos?done=false"
+//	curl "http://localhost:8080/todos?done=true"
 func listTodos(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -61,6 +65,10 @@ func listTodos(w http.ResponseWriter, r *http.Request) {
 }
 
 // createTodo creates a new todo. Body: {"title": "..."}
+//
+//	curl -X POST http://localhost:8080/todos \
+//	     -H "Content-Type: application/json" \
+//	     -d '{"title":"Buy milk"}'
 func createTodo(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -97,6 +105,8 @@ func createTodo(w http.ResponseWriter, r *http.Request) {
 }
 
 // getTodo returns a single todo by ID.
+//
+//	curl http://localhost:8080/todos/<id>
 func getTodo(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	id := r.PathValue("id")
@@ -122,6 +132,10 @@ func getTodo(w http.ResponseWriter, r *http.Request) {
 }
 
 // updateTodo patches a todo. Body: {"title": "...", "done": true}
+//
+//	curl -X PATCH http://localhost:8080/todos/<id> \
+//	     -H "Content-Type: application/json" \
+//	     -d '{"done":true}'
 func updateTodo(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	id := r.PathValue("id")
@@ -163,6 +177,8 @@ func updateTodo(w http.ResponseWriter, r *http.Request) {
 }
 
 // deleteTodo removes a todo by ID.
+//
+//	curl -X DELETE http://localhost:8080/todos/<id>
 func deleteTodo(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	id := r.PathValue("id")

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/jakubtomas-cz/mongopher"
+	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
 )
 
@@ -1714,5 +1715,14 @@ func TestBulkDelete_NoMatch(t *testing.T) {
 	}
 	if res.DeletedCount != 0 {
 		t.Fatalf("expected DeletedCount=0, got %d", res.DeletedCount)
+	}
+}
+
+func TestDriver_Ping(t *testing.T) {
+	ctx := context.Background()
+	raw := testClient.Driver()
+	res := raw.Database("admin").RunCommand(ctx, bson.D{{Key: "ping", Value: 1}})
+	if err := res.Err(); err != nil {
+		t.Fatalf("ping via Driver() failed: %v", err)
 	}
 }
