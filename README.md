@@ -51,6 +51,56 @@ doc, err := users.FindOne(ctx, mongopher.Eq("name", "Alice"))
 fmt.Println(string(doc)) // {"_id":"507f1f77...","name":"Alice","age":30}
 ```
 
+## Design philosophy
+
+Every method accepts and returns plain `[]byte` JSON. There are no intermediate types to construct, no struct tags to maintain, and no marshalling step between your data and the database.
+
+This means a raw HTTP request body can go straight into MongoDB:
+
+```go
+// Forward a POST body directly — no parsing, no wrapping
+body, _ := io.ReadAll(r.Body)
+res, err := col.InsertOne(ctx, body)
+
+// Forward a PATCH body directly — Set wraps it in {"$set":{...}}
+body, _ := io.ReadAll(r.Body)
+res, err := col.UpdateOne(ctx, mongopher.FilterByID(id), mongopher.Set(body))
+
+// Forward a bulk-insert body directly — body is a JSON array
+body, _ := io.ReadAll(r.Body)
+res, err := col.InsertMany(ctx, body)
+```
+
+And a MongoDB result can go straight back out:
+
+```go
+// Serve a document directly — no unmarshalling needed
+doc, err := col.FindOne(ctx, mongopher.FilterByID(id))
+w.Header().Set("Content-Type", "application/json")
+w.Write(doc)
+
+// Serve a list directly
+docs, err := col.Find(ctx, mongopher.EmptyFilter())
+w.Header().Set("Content-Type", "application/json")
+w.Write(docs) // already a JSON array
+```
+
+When you do need a typed value — for validation, business logic, or response shaping — `Marshal` and `UnmarshalAs` bridge the gap without leaving the mongopher namespace:
+
+```go
+// Encode a struct or map for insertion
+data, err := mongopher.Marshal(User{Name: "Alice", Age: 30})
+res, err := col.InsertOne(ctx, data)
+
+// Decode a result into a typed struct
+doc, err := col.FindOne(ctx, filter)
+user, err := mongopher.UnmarshalAs[User](doc)
+
+// Decode a list
+docs, err := col.Find(ctx, mongopher.EmptyFilter())
+users, err := mongopher.UnmarshalAs[[]User](docs)
+```
+
 ## Connecting
 
 ```go

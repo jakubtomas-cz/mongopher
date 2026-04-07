@@ -7,6 +7,43 @@
 // (go.mongodb.org/mongo-driver/v2), which is pulled in automatically
 // as a transitive dependency.
 //
+// # Design philosophy
+//
+// Every method accepts and returns plain []byte JSON. There are no intermediate
+// types to construct, no struct tags to maintain, and no marshalling step
+// between your data and the database.
+//
+// A raw HTTP request body can go straight into MongoDB:
+//
+//	body, _ := io.ReadAll(r.Body)
+//	res, err := col.InsertOne(ctx, body)
+//
+//	body, _ = io.ReadAll(r.Body)
+//	res, err = col.UpdateOne(ctx, mongopher.FilterByID(id), mongopher.Set(body))
+//
+//	body, _ = io.ReadAll(r.Body) // JSON array
+//	res, err = col.InsertMany(ctx, body)
+//
+// And a MongoDB result can go straight back out:
+//
+//	doc, err := col.FindOne(ctx, mongopher.FilterByID(id))
+//	w.Header().Set("Content-Type", "application/json")
+//	w.Write(doc)
+//
+//	docs, err := col.Find(ctx, mongopher.EmptyFilter())
+//	w.Write(docs) // already a JSON array
+//
+// When you do need a typed value, Marshal and UnmarshalAs bridge the gap:
+//
+//	data, err := mongopher.Marshal(User{Name: "Alice", Age: 30})
+//	res, err := col.InsertOne(ctx, data)
+//
+//	doc, err := col.FindOne(ctx, filter)
+//	user, err := mongopher.UnmarshalAs[User](doc)
+//
+//	docs, err := col.Find(ctx, mongopher.EmptyFilter())
+//	users, err := mongopher.UnmarshalAs[[]User](docs)
+//
 // # Connecting
 //
 // Connect dials MongoDB and pings the server to verify connectivity.
