@@ -555,8 +555,8 @@ func TestWithTransaction_RegularErrorIsNotTransactionsNotSupported(t *testing.T)
 		return sentinel
 	})
 
-	if errors.Is(err, mongopher.ErrTransactionsNotSupported) {
-		t.Fatal("regular transaction error must not be ErrTransactionsNotSupported")
+	if errors.Is(err, mongopher.ErrReplicaSetRequired) {
+		t.Fatal("regular transaction error must not be ErrReplicaSetRequired")
 	}
 	if !errors.Is(err, sentinel) {
 		t.Fatalf("expected sentinel error to be preserved, got %v", err)

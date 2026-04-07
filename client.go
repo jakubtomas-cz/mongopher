@@ -33,7 +33,7 @@ func Connect(ctx context.Context, uri, dbName string, opts ...*options.ClientOpt
 // The ctx passed to fn must be forwarded to all collection operations
 // so they participate in the transaction. Returning a non-nil error
 // from fn aborts the transaction; returning nil commits it.
-// Returns ErrTransactionsNotSupported if the instance is not a replica set or sharded cluster.
+// Returns ErrReplicaSetRequired if the instance is not a replica set or sharded cluster.
 func (c *Client) WithTransaction(ctx context.Context, fn func(ctx context.Context) error) error {
 	return runWithTransaction(ctx, c.inner, fn)
 }
@@ -50,7 +50,7 @@ func runWithTransaction(ctx context.Context, client *mongo.Client, fn func(ctx c
 	if err != nil {
 		var ce mongo.CommandError
 		if errors.As(err, &ce) && ce.Code == 20 {
-			return ErrTransactionsNotSupported
+			return ErrReplicaSetRequired
 		}
 		return err
 	}

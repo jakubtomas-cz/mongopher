@@ -447,11 +447,11 @@ err := client.WithTransaction(ctx, func(ctx context.Context) error {
 
 > **Note:** `col.WithTransaction` works for multi-collection transactions too — what ties operations to a transaction is the `ctx`, not which object you call `WithTransaction` on. `client.WithTransaction` is simply more explicit about the intent.
 
-Transactions require a replica set or sharded cluster. On a standalone instance, `WithTransaction` returns `ErrTransactionsNotSupported`:
+Transactions require a replica set or sharded cluster. On a standalone instance, `WithTransaction` returns `ErrReplicaSetRequired`:
 
 ```go
 err := col.WithTransaction(ctx, fn)
-if errors.Is(err, mongopher.ErrTransactionsNotSupported) {
+if errors.Is(err, mongopher.ErrReplicaSetRequired) {
     // instance is not a replica set or sharded cluster
 }
 ```
@@ -485,6 +485,29 @@ col.FindOne(ctx, filter)                        // delegates to the underlying c
 ```
 
 Common use cases: automatic timestamps, audit logging, input validation, cache invalidation, instrumentation.
+
+## Replica sets and sharded clusters
+
+Some features — **change streams** and **transactions** — require MongoDB to run as a replica set or sharded cluster. A standalone `mongod` is not sufficient.
+
+For local development and testing, the simplest option is a single-node replica set:
+
+```bash
+# Start a single-node replica set via Docker (what make mongo-up does)
+docker run -d --name mongopher-mongo -p 27017:27017 mongo:latest --replSet rs0
+sleep 2
+docker exec mongopher-mongo mongosh --eval 'rs.initiate({_id:"rs0",members:[{_id:0,host:"localhost:27017"}]})'
+```
+
+Or just use the included Makefile target:
+
+```bash
+make mongo-up
+```
+
+In production, use a proper multi-node replica set or a managed cluster (e.g. MongoDB Atlas) which runs as a replica set by default.
+
+When replica set features are called against a standalone instance, both `WithTransaction` and `Watch` return `ErrReplicaSetRequired`.
 
 ## Change streams
 

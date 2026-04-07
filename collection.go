@@ -500,12 +500,13 @@ func (c *mongoCollection) Drop(ctx context.Context) error {
 // The ctx passed to fn must be forwarded to all collection operations
 // so they participate in the transaction. Returning a non-nil error
 // from fn aborts the transaction; returning nil commits it.
-// Returns ErrTransactionsNotSupported if the instance is not a replica set or sharded cluster.
+// Returns ErrReplicaSetRequired if the instance is not a replica set or sharded cluster.
 func (c *mongoCollection) WithTransaction(ctx context.Context, fn func(ctx context.Context) error) error {
 	return runWithTransaction(ctx, c.inner.Database().Client(), fn)
 }
 
 // Watch opens a change stream on the collection.
+// Returns ErrReplicaSetRequired if the instance is not a replica set or sharded cluster.
 func (c *mongoCollection) Watch(ctx context.Context, opts ...WatchOption) (ChangeStream, error) {
 	wo := &watchOptions{}
 	for _, o := range opts {
@@ -528,6 +529,10 @@ func (c *mongoCollection) Watch(ctx context.Context, opts ...WatchOption) (Chang
 
 	cs, err := c.inner.Watch(ctx, pipeline, streamOpts)
 	if err != nil {
+		var ce mongo.CommandError
+		if errors.As(err, &ce) && ce.Code == 40573 {
+			return nil, ErrReplicaSetRequired
+		}
 		return nil, err
 	}
 	return &mongoChangeStream{inner: cs}, nil

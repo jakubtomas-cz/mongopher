@@ -244,6 +244,26 @@
 // Common stages: $match (filter), $project (reshape), $group (summarise),
 // $sort, $limit, $skip, $lookup (join), $unwind (flatten arrays).
 //
+// # Replica sets and sharded clusters
+//
+// Change streams and transactions require MongoDB to run as a replica set or
+// sharded cluster. A standalone mongod instance is not sufficient.
+//
+// For local development, a single-node replica set is the simplest option:
+//
+//	docker run -d --name mongopher-mongo -p 27017:27017 mongo:latest --replSet rs0
+//	sleep 2
+//	docker exec mongopher-mongo mongosh --eval \
+//	    'rs.initiate({_id:"rs0",members:[{_id:0,host:"localhost:27017"}]})'
+//
+// The included Makefile wraps this as `make mongo-up`.
+//
+// In production, use a proper multi-node replica set or a managed cluster
+// (e.g. MongoDB Atlas), which runs as a replica set by default.
+//
+// Calling WithTransaction or Watch against a standalone instance returns
+// ErrReplicaSetRequired.
+//
 // # Change streams
 //
 // Watch opens a change stream on the collection and returns an iterator over
@@ -288,7 +308,7 @@
 // The ctx passed to fn must be forwarded to all collection operations
 // so they participate in the transaction. Returning a non-nil error
 // aborts the transaction; returning nil commits it.
-// Returns ErrTransactionsNotSupported on standalone instances.
+// Returns ErrReplicaSetRequired on standalone instances.
 //
 // Single-collection transaction via Collection:
 //
@@ -311,7 +331,7 @@
 //	    _, err := inventory.UpdateOne(ctx, filter, mongopher.Inc([]byte(`{"stock":-1}`)))
 //	    return err
 //	})
-//	if errors.Is(err, mongopher.ErrTransactionsNotSupported) {
+//	if errors.Is(err, mongopher.ErrReplicaSetRequired) {
 //	    // instance is not a replica set or sharded cluster
 //	}
 //
