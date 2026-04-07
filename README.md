@@ -169,7 +169,7 @@ col.InsertOne(ctx, []byte(`{"_id":"my-custom-id","name":"Alice"}`))
 
 #### Inserting from a struct or map
 
-mongopher accepts `[]byte` JSON, so use `encoding/json` to marshal your existing types before passing them in:
+Use `mongopher.Marshal` to encode a struct or map to `[]byte` before passing it in:
 
 ```go
 type User struct {
@@ -177,14 +177,14 @@ type User struct {
     Age  int    `json:"age"`
 }
 
-data, err := json.Marshal(User{Name: "Alice", Age: 30})
+data, err := mongopher.Marshal(User{Name: "Alice", Age: 30})
 res, err := col.InsertOne(ctx, data)
 ```
 
 The same works with `map[string]any`:
 
 ```go
-data, err := json.Marshal(map[string]any{"name": "Alice", "age": 30})
+data, err := mongopher.Marshal(map[string]any{"name": "Alice", "age": 30})
 res, err := col.InsertOne(ctx, data)
 ```
 
@@ -208,23 +208,26 @@ fmt.Println(string(docs))
 
 #### Decoding results
 
-`docs` is a `[]byte` JSON array. Use `Unmarshal` to decode it into a slice of maps, or `UnmarshalAs` for a typed slice:
+Use `UnmarshalAs` to decode results — `T` is the full result type, so use a slice for arrays and a plain type for single documents:
 
 ```go
-// []map[string]any — no type parameter needed
-items, err := mongopher.Unmarshal(docs)
-fmt.Println(items[0]["name"]) // Alice
-
-// Typed slice
 type User struct {
     Name string `json:"name"`
     Age  int    `json:"age"`
 }
-users, err := mongopher.UnmarshalAs[User](docs)
-fmt.Println(users[0].Name) // Alice
-```
 
-Both helpers work identically with results from `Find`, `Aggregate`, and `ListIndexes`.
+// Array from Find/Aggregate/ListIndexes
+users, err := mongopher.UnmarshalAs[[]User](docs)
+fmt.Println(users[0].Name) // Alice
+
+// Untyped array — use map[string]any
+items, err := mongopher.UnmarshalAs[[]map[string]any](docs)
+fmt.Println(items[0]["name"]) // Alice
+
+// Single document from FindOne/FindOneAndUpdate
+user, err := mongopher.UnmarshalAs[User](doc)
+fmt.Println(user.Name) // Alice
+```
 
 `Find` accepts optional modifiers:
 
@@ -483,12 +486,15 @@ type TimestampedCollection struct {
 }
 
 func (c *TimestampedCollection) InsertOne(ctx context.Context, doc []byte) (mongopher.InsertResult, error) {
-    var m map[string]any
-    if err := json.Unmarshal(doc, &m); err != nil {
+    m, err := mongopher.UnmarshalAs[map[string]any](doc)
+    if err != nil {
         return mongopher.InsertResult{}, err
     }
     m["createdAt"] = time.Now().UTC()
-    doc, _ = json.Marshal(m)
+    doc, err = mongopher.Marshal(m)
+    if err != nil {
+        return mongopher.InsertResult{}, err
+    }
     return c.Collection.InsertOne(ctx, doc)
 }
 ```

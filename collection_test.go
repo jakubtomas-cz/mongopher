@@ -824,7 +824,7 @@ func TestFilterFromJSON_CustomStringID(t *testing.T) {
 // parseArray is a test helper that unmarshals a JSON array into individual raw documents.
 func parseArray(t *testing.T, docs []byte) []json.RawMessage {
 	t.Helper()
-	items, err := mongopher.UnmarshalAs[json.RawMessage](docs)
+	items, err := mongopher.UnmarshalAs[[]json.RawMessage](docs)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -832,7 +832,7 @@ func parseArray(t *testing.T, docs []byte) []json.RawMessage {
 }
 
 func names(docs []byte) []string {
-	items, _ := mongopher.Unmarshal(docs)
+	items, _ := mongopher.UnmarshalAs[[]map[string]any](docs)
 	var out []string
 	for _, m := range items {
 		if n, ok := m["name"].(string); ok {
@@ -1140,7 +1140,7 @@ func TestAggregate_GroupAndCount(t *testing.T) {
 		ID    string  `json:"_id"`
 		Count float64 `json:"count"`
 	}
-	groups, err := mongopher.UnmarshalAs[group](results)
+	groups, err := mongopher.UnmarshalAs[[]group](results)
 	if err != nil {
 		t.Fatal(err)
 	}

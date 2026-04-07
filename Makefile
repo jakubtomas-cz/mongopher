@@ -13,3 +13,6 @@ test:
 
 build:
 	go build ./...
+
+todo-server:
+	go run ./examples/todo-server/main.go

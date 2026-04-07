@@ -7,10 +7,51 @@ import (
 	"github.com/jakubtomas-cz/mongopher"
 )
 
-func TestUnmarshal(t *testing.T) {
+func TestMarshal(t *testing.T) {
+	doc, err := mongopher.Marshal(map[string]any{"name": "Alice", "age": 30})
+	if err != nil {
+		t.Fatal(err)
+	}
+	m, err := mongopher.UnmarshalAs[map[string]any](doc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if m["name"] != "Alice" || m["age"] != float64(30) {
+		t.Fatalf("unexpected values: %v", m)
+	}
+}
+
+func TestMarshal_Struct(t *testing.T) {
+	type user struct {
+		Name string `json:"name"`
+		Age  int    `json:"age"`
+	}
+
+	doc, err := mongopher.Marshal(user{Name: "Bob", Age: 25})
+	if err != nil {
+		t.Fatal(err)
+	}
+	u, err := mongopher.UnmarshalAs[user](doc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if u != (user{"Bob", 25}) {
+		t.Fatalf("unexpected value: %v", u)
+	}
+}
+
+func TestMarshal_InvalidValue(t *testing.T) {
+	// channels cannot be marshalled to JSON
+	_, err := mongopher.Marshal(make(chan int))
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+}
+
+func TestUnmarshalAs_Map(t *testing.T) {
 	docs := []byte(`[{"name":"Alice","age":30},{"name":"Bob","age":25}]`)
 
-	items, err := mongopher.Unmarshal(docs)
+	items, err := mongopher.UnmarshalAs[[]map[string]any](docs)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -25,24 +66,7 @@ func TestUnmarshal(t *testing.T) {
 	}
 }
 
-func TestUnmarshal_Empty(t *testing.T) {
-	items, err := mongopher.Unmarshal([]byte(`[]`))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(items) != 0 {
-		t.Fatalf("expected 0 items, got %d", len(items))
-	}
-}
-
-func TestUnmarshal_InvalidJSON(t *testing.T) {
-	_, err := mongopher.Unmarshal([]byte(`not json`))
-	if !errors.Is(err, mongopher.ErrInvalidJSON) {
-		t.Fatalf("expected ErrInvalidJSON, got %v", err)
-	}
-}
-
-func TestUnmarshalAs(t *testing.T) {
+func TestUnmarshalAs_Array(t *testing.T) {
 	type user struct {
 		Name string `json:"name"`
 		Age  int    `json:"age"`
@@ -50,7 +74,7 @@ func TestUnmarshalAs(t *testing.T) {
 
 	docs := []byte(`[{"name":"Alice","age":30},{"name":"Bob","age":25}]`)
 
-	items, err := mongopher.UnmarshalAs[user](docs)
+	items, err := mongopher.UnmarshalAs[[]user](docs)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -65,10 +89,27 @@ func TestUnmarshalAs(t *testing.T) {
 	}
 }
 
+func TestUnmarshalAs_Single(t *testing.T) {
+	type user struct {
+		Name string `json:"name"`
+		Age  int    `json:"age"`
+	}
+
+	doc := []byte(`{"name":"Alice","age":30}`)
+
+	u, err := mongopher.UnmarshalAs[user](doc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if u != (user{"Alice", 30}) {
+		t.Fatalf("unexpected value: %v", u)
+	}
+}
+
 func TestUnmarshalAs_Empty(t *testing.T) {
 	type user struct{ Name string }
 
-	items, err := mongopher.UnmarshalAs[user]([]byte(`[]`))
+	items, err := mongopher.UnmarshalAs[[]user]([]byte(`[]`))
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -42,12 +42,12 @@
 //	})
 //	fmt.Println(many.InsertedIDs) // []string of hex IDs
 //
-// To insert from a struct or map, marshal it with encoding/json first:
+// To insert from a struct or map, use mongopher.Marshal:
 //
-//	data, _ := json.Marshal(User{Name: "Alice", Age: 30})
-//	res, err := col.InsertOne(ctx, data)
+//	data, err := mongopher.Marshal(User{Name: "Alice", Age: 30})
+//	res, err = col.InsertOne(ctx, data)
 //
-//	data, _ = json.Marshal(map[string]any{"name": "Alice", "age": 30})
+//	data, err = mongopher.Marshal(map[string]any{"name": "Alice", "age": 30})
 //	res, err = col.InsertOne(ctx, data)
 //
 // # Querying
@@ -92,18 +92,21 @@
 //
 // Find always returns a valid JSON array. An empty result set is [], never nil.
 //
-// docs is a []byte JSON array. Use Unmarshal or UnmarshalAs to decode it into Go values:
+// Use UnmarshalAs to decode results — T is the full result type:
 //
-//	// []map[string]any — no type parameter needed
-//	items, err := mongopher.Unmarshal(docs)
-//	fmt.Println(items[0]["name"]) // Alice
-//
-//	// Typed slice
 //	type User struct { Name string `json:"name"` }
-//	users, err := mongopher.UnmarshalAs[User](docs)
+//
+//	// Array from Find/Aggregate/ListIndexes
+//	users, err := mongopher.UnmarshalAs[[]User](docs)
 //	fmt.Println(users[0].Name) // Alice
 //
-// Both helpers work identically with results from Find, Aggregate, and ListIndexes.
+//	// Untyped array
+//	items, err := mongopher.UnmarshalAs[[]map[string]any](docs)
+//	fmt.Println(items[0]["name"]) // Alice
+//
+//	// Single document from FindOne/FindOneAndUpdate
+//	user, err := mongopher.UnmarshalAs[User](doc)
+//	fmt.Println(user.Name) // Alice
 //
 // WithSort can be applied multiple times for multi-field sorting:
 //
@@ -356,12 +359,15 @@
 //	}
 //
 //	func (c *TimestampedCollection) InsertOne(ctx context.Context, doc []byte) (mongopher.InsertResult, error) {
-//	    var m map[string]any
-//	    if err := json.Unmarshal(doc, &m); err != nil {
+//	    m, err := mongopher.UnmarshalAs[map[string]any](doc)
+//	    if err != nil {
 //	        return mongopher.InsertResult{}, err
 //	    }
 //	    m["createdAt"] = time.Now().UTC()
-//	    doc, _ = json.Marshal(m)
+//	    doc, err = mongopher.Marshal(m)
+//	    if err != nil {
+//	        return mongopher.InsertResult{}, err
+//	    }
 //	    return c.Collection.InsertOne(ctx, doc)
 //	}
 //

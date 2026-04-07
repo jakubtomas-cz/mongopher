@@ -26,22 +26,28 @@ func bsonToJSON(doc bson.D) ([]byte, error) {
 	return flattenID(data), nil
 }
 
-// Unmarshal decodes a JSON array returned by Find, Aggregate, or ListIndexes into a slice of maps.
+// Marshal is a thin wrapper over json.Marshal that encodes a Go value to JSON bytes,
+// ready to pass to InsertOne, Set, or similar methods.
 //
-//	docs, _ := col.Find(ctx, filter)
-//	items, err := mongopher.Unmarshal(docs)
-func Unmarshal(docs []byte) ([]map[string]any, error) {
-	return UnmarshalAs[map[string]any](docs)
+//	doc, err := mongopher.Marshal(map[string]any{"title": "Buy milk", "done": false})
+//	col.InsertOne(ctx, doc)
+func Marshal(v any) ([]byte, error) {
+	return json.Marshal(v)
 }
 
-// UnmarshalAs decodes a JSON array into a typed slice.
+// UnmarshalAs is a thin wrapper over json.Unmarshal that decodes JSON into T.
+// T determines the shape — use a slice type for arrays and a non-slice type for single documents.
 //
-//	type User struct { Name string `json:"name"` }
-//	users, err := mongopher.UnmarshalAs[User](docs)
-func UnmarshalAs[T any](docs []byte) ([]T, error) {
-	var result []T
+//	// JSON array from Find/Aggregate
+//	users, err := mongopher.UnmarshalAs[[]User](docs)
+//
+//	// Single document from FindOne
+//	user, err := mongopher.UnmarshalAs[User](doc)
+func UnmarshalAs[T any](docs []byte) (T, error) {
+	var result T
 	if err := json.Unmarshal(docs, &result); err != nil {
-		return nil, fmt.Errorf("%w: %s", ErrInvalidJSON, err)
+		var zero T
+		return zero, fmt.Errorf("%w: %s", ErrInvalidJSON, err)
 	}
 	return result, nil
 }
