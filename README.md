@@ -11,7 +11,7 @@ Pass JSON in, get JSON back. No struct tags, no code generation, no ORM ceremony
 - Atomic find-and-modify: `FindOneAndUpdate`, `FindOneAndDelete`
 - Full document replacement with `ReplaceOne`
 - Upsert support on `UpdateOne`, `UpdateMany`, and `ReplaceOne`
-- Typed filter helpers (`Eq`, `Ne`, `Gt`, `In`, `Exists`, `And`, ...) with raw JSON fallback
+- Typed filter helpers (`Eq`, `Ne`, `Gt`, `In`, `Exists`, `And`, `Or`, ...) with raw JSON fallback
 - Update operator helpers (`Set`, `Inc`, `Push`, ...) — wrap any JSON body in a MongoDB operator, no string construction needed
 - Sorting, pagination, and multi-field ordering
 - ObjectIDs as plain hex strings — no Extended JSON noise
@@ -176,6 +176,12 @@ mongopher.And(
     mongopher.Gt("age", 18),
 )
 
+// Match any of several conditions
+mongopher.Or(
+    mongopher.Eq("role", "admin"),
+    mongopher.Eq("role", "owner"),
+)
+
 // Match all documents
 mongopher.EmptyFilter()
 
@@ -198,11 +204,10 @@ res, err := col.UpdateMany(ctx, mongopher.In("role", "admin", "owner"), mongophe
 res, err := col.DeleteMany(ctx, mongopher.Exists("deletedAt", true))
 ```
 
-For anything not covered by the helpers — `$or`, `$regex`, dot notation, nested operators — fall back to raw JSON:
+For anything not covered by the helpers — `$regex`, dot notation, nested operators — fall back to raw JSON:
 
 ```go
 filter, err := mongopher.FilterFromJSON([]byte(`{"address.city":"Prague"}`))
-filter, err := mongopher.FilterFromJSON([]byte(`{"$or":[{"role":"admin"},{"role":"owner"}]}`))
 ```
 
 ## CRUD operations

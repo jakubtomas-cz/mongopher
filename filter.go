@@ -94,11 +94,21 @@ func In(field string, values ...any) Filter {
 // And combines multiple filters into a single filter that matches documents
 // satisfying all of them.
 func And(filters ...Filter) Filter {
-	var doc bson.D
-	for _, f := range filters {
-		doc = append(doc, f.raw...)
+	conditions := make(bson.A, len(filters))
+	for i, f := range filters {
+		conditions[i] = f.raw
 	}
-	return Filter{raw: doc}
+	return Filter{raw: bson.D{{Key: "$and", Value: conditions}}}
+}
+
+// Or combines multiple filters into a single filter that matches documents
+// satisfying at least one of them.
+func Or(filters ...Filter) Filter {
+	conditions := make(bson.A, len(filters))
+	for i, f := range filters {
+		conditions[i] = f.raw
+	}
+	return Filter{raw: bson.D{{Key: "$or", Value: conditions}}}
 }
 
 // FilterByID returns a filter that matches a document by its _id field.

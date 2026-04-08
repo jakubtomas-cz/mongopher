@@ -110,7 +110,10 @@
 //	// Combine conditions
 //	mongopher.And(mongopher.Eq("status", "active"), mongopher.Gt("age", 18))
 //
-//	// Raw JSON for anything else ($or, $regex, dot notation, ...)
+//	// Match any of several conditions
+//	mongopher.Or(mongopher.Eq("role", "admin"), mongopher.Eq("role", "owner"))
+//
+//	// Raw JSON for anything else ($regex, dot notation, ...)
 //	filter, err := mongopher.FilterFromJSON([]byte(`{"name":"Alice"}`))
 //
 //	// Filter by _id:

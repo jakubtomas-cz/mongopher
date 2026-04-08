@@ -996,6 +996,53 @@ func TestAnd(t *testing.T) {
 	}
 }
 
+func TestAnd_SameField(t *testing.T) {
+	ctx := context.Background()
+	c := col(t)
+	seedDocs(t, c,
+		`{"name":"Alice","age":10}`,
+		`{"name":"Bob","age":30}`,
+		`{"name":"Carol","age":50}`,
+	)
+
+	docs, err := c.Find(ctx, mongopher.And(
+		mongopher.Gt("age", 20),
+		mongopher.Lt("age", 40),
+	))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n := names(docs); len(n) != 1 || n[0] != "Bob" {
+		t.Fatalf("expected [Bob], got %v", n)
+	}
+}
+
+func TestOr(t *testing.T) {
+	ctx := context.Background()
+	c := col(t)
+	seedDocs(t, c,
+		`{"name":"Alice","role":"admin"}`,
+		`{"name":"Bob","role":"viewer"}`,
+		`{"name":"Carol","role":"owner"}`,
+	)
+
+	docs, err := c.Find(ctx, mongopher.Or(
+		mongopher.Eq("role", "admin"),
+		mongopher.Eq("role", "owner"),
+	))
+	if err != nil {
+		t.Fatal(err)
+	}
+	n := names(docs)
+	if len(n) != 2 {
+		t.Fatalf("expected 2 docs, got %v", n)
+	}
+	got := map[string]bool{n[0]: true, n[1]: true}
+	if !got["Alice"] || !got["Carol"] {
+		t.Fatalf("expected [Alice Carol], got %v", n)
+	}
+}
+
 func TestFilterByID(t *testing.T) {
 	ctx := context.Background()
 	c := col(t)
