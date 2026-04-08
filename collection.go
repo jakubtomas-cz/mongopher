@@ -28,6 +28,7 @@ type Collection interface {
 	BulkUpdate(ctx context.Context, ops []UpdateSpec) (UpdateResult, error)
 	BulkDelete(ctx context.Context, filters []Filter) (DeleteResult, error)
 	CountDocuments(ctx context.Context, filter Filter) (int64, error)
+	EstimatedDocumentCount(ctx context.Context) (int64, error)
 	Aggregate(ctx context.Context, pipeline []byte) ([]byte, error)
 	CreateIndex(ctx context.Context, keys []IndexKey, opts ...IndexOption) (string, error)
 	DropIndex(ctx context.Context, name string) error
@@ -452,6 +453,13 @@ func (c *mongoCollection) BulkDelete(ctx context.Context, filters []Filter) (Del
 // CountDocuments returns the number of documents matching filter.
 func (c *mongoCollection) CountDocuments(ctx context.Context, filter Filter) (int64, error) {
 	return c.inner.CountDocuments(ctx, filter.raw)
+}
+
+// EstimatedDocumentCount returns a fast approximate count of all documents in
+// the collection using collection metadata. It does not accept a filter — use
+// CountDocuments when you need an exact or filtered count.
+func (c *mongoCollection) EstimatedDocumentCount(ctx context.Context) (int64, error) {
+	return c.inner.EstimatedDocumentCount(ctx)
 }
 
 // Aggregate executes a MongoDB aggregation pipeline and returns the result documents as JSON.

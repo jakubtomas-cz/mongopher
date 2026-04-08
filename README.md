@@ -436,7 +436,12 @@ count, err := col.CountDocuments(ctx, filter)
 
 // Count all documents
 total, err := col.CountDocuments(ctx, mongopher.EmptyFilter())
+
+// Fast approximate count using collection metadata (no filter)
+n, err := col.EstimatedDocumentCount(ctx)
 ```
+
+`EstimatedDocumentCount` is significantly faster on large collections because it reads collection metadata rather than scanning documents. Use it when an exact count is not required and there is no filter.
 
 ### Drop
 

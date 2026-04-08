@@ -267,6 +267,23 @@ func TestCountDocuments(t *testing.T) {
 	}
 }
 
+func TestEstimatedDocumentCount(t *testing.T) {
+	ctx := context.Background()
+	c := col(t)
+
+	if _, err := c.InsertMany(ctx, []byte(`[{"x":1},{"x":2},{"x":3}]`)); err != nil {
+		t.Fatal(err)
+	}
+
+	n, err := c.EstimatedDocumentCount(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n != 3 {
+		t.Fatalf("expected 3, got %d", n)
+	}
+}
+
 func TestFind_Empty(t *testing.T) {
 	ctx := context.Background()
 	c := col(t)

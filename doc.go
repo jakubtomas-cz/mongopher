@@ -257,6 +257,11 @@
 //
 //	n, err := col.CountDocuments(ctx, mongopher.EmptyFilter())
 //
+// EstimatedDocumentCount is a faster alternative that reads collection metadata
+// instead of scanning documents. Use it when an exact or filtered count is not needed.
+//
+//	n, err := col.EstimatedDocumentCount(ctx)
+//
 //	err = col.Drop(ctx) // removes the entire collection
 //
 // # Indexes
