@@ -1043,6 +1043,52 @@ func TestOr(t *testing.T) {
 	}
 }
 
+func TestWithFields_Find(t *testing.T) {
+	ctx := context.Background()
+	c := col(t)
+	seedDocs(t, c, `{"name":"Alice","age":30,"role":"admin"}`)
+
+	docs, err := c.Find(ctx, mongopher.EmptyFilter(), mongopher.WithFields("name", "role"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	items, _ := mongopher.UnmarshalAs[[]map[string]any](docs)
+	if len(items) != 1 {
+		t.Fatalf("expected 1 doc, got %d", len(items))
+	}
+	item := items[0]
+	if _, ok := item["name"]; !ok {
+		t.Error("expected 'name' field")
+	}
+	if _, ok := item["role"]; !ok {
+		t.Error("expected 'role' field")
+	}
+	if _, ok := item["age"]; ok {
+		t.Error("expected 'age' to be excluded")
+	}
+}
+
+func TestWithFields_FindOne(t *testing.T) {
+	ctx := context.Background()
+	c := col(t)
+	seedDocs(t, c, `{"name":"Alice","age":30,"role":"admin"}`)
+
+	doc, err := c.FindOne(ctx, mongopher.EmptyFilter(), mongopher.WithFields("name"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	item, _ := mongopher.UnmarshalAs[map[string]any](doc)
+	if _, ok := item["name"]; !ok {
+		t.Error("expected 'name' field")
+	}
+	if _, ok := item["age"]; ok {
+		t.Error("expected 'age' to be excluded")
+	}
+	if _, ok := item["role"]; ok {
+		t.Error("expected 'role' to be excluded")
+	}
+}
+
 func TestFilterByID(t *testing.T) {
 	ctx := context.Background()
 	c := col(t)

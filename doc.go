@@ -160,6 +160,12 @@
 //	    mongopher.WithSort("createdAt", mongopher.DESC),
 //	)
 //
+// WithFields limits the returned fields (like SELECT in SQL). It is accepted
+// by both Find and FindOne. _id is always included.
+//
+//	docs, err := col.Find(ctx, filter, mongopher.WithFields("name", "email"))
+//	doc, err := col.FindOne(ctx, filter, mongopher.WithFields("name", "email"))
+//
 // # Updating documents
 //
 // Use the update helpers to wrap any JSON object in a MongoDB operator:

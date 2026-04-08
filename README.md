@@ -311,6 +311,16 @@ docs, err := col.Find(ctx, filter,
 )
 ```
 
+Use `WithFields` to return only specific fields (like `SELECT` in SQL). `_id` is always included unless excluded explicitly via the raw driver.
+
+```go
+// Only return name and email — age and other fields are omitted
+docs, err := col.Find(ctx, filter, mongopher.WithFields("name", "email"))
+
+// Works on FindOne too
+doc, err := col.FindOne(ctx, filter, mongopher.WithFields("name", "email"))
+```
+
 ### Update
 
 Use the update helpers to wrap any JSON object in a MongoDB operator — no manual string construction needed:

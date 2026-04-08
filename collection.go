@@ -15,7 +15,7 @@ import (
 type Collection interface {
 	InsertOne(ctx context.Context, doc []byte) (InsertResult, error)
 	InsertMany(ctx context.Context, docs []byte) (InsertManyResult, error)
-	FindOne(ctx context.Context, filter Filter) ([]byte, error)
+	FindOne(ctx context.Context, filter Filter, opts ...FindOneOption) ([]byte, error)
 	Find(ctx context.Context, filter Filter, opts ...FindOption) ([]byte, error)
 	UpdateOne(ctx context.Context, filter Filter, update []byte, opts ...UpdateOption) (UpdateResult, error)
 	UpdateMany(ctx context.Context, filter Filter, update []byte, opts ...UpdateOption) (UpdateResult, error)
@@ -71,29 +71,68 @@ const (
 )
 
 // FindOption configures a Find call.
-type FindOption func(*findOptions)
+type FindOption interface{ applyFind(*findOptions) }
+
+// FindOneOption configures a FindOne call.
+type FindOneOption interface{ applyFindOne(*findOneOptions) }
 
 type findOptions struct {
-	limit int64
-	skip  int64
-	sort  bson.D
+	limit      int64
+	skip       int64
+	sort       bson.D
+	projection bson.D
 }
 
+type findOneOptions struct {
+	projection bson.D
+}
+
+// FieldsOption limits which fields are returned. It is accepted by both Find and FindOne.
+type FieldsOption struct{ proj bson.D }
+
+func (o FieldsOption) applyFind(fo *findOptions)       { fo.projection = o.proj }
+func (o FieldsOption) applyFindOne(fo *findOneOptions) { fo.projection = o.proj }
+
+// WithFields returns only the named fields in each document. _id is always included unless
+// the collection was queried with an explicit exclusion via the raw driver.
+func WithFields(fields ...string) FieldsOption {
+	proj := make(bson.D, len(fields))
+	for i, f := range fields {
+		proj[i] = bson.E{Key: f, Value: 1}
+	}
+	return FieldsOption{proj: proj}
+}
+
+type limitOption struct{ n int64 }
+
+func (o limitOption) applyFind(fo *findOptions) { fo.limit = o.n }
+
 // WithLimit limits the number of documents returned.
-func WithLimit(n int64) FindOption { return func(o *findOptions) { o.limit = n } }
+func WithLimit(n int64) FindOption { return limitOption{n} }
+
+type skipOption struct{ n int64 }
+
+func (o skipOption) applyFind(fo *findOptions) { fo.skip = o.n }
 
 // WithSkip skips the first n documents.
-func WithSkip(n int64) FindOption { return func(o *findOptions) { o.skip = n } }
+func WithSkip(n int64) FindOption { return skipOption{n} }
+
+type sortOption struct {
+	field string
+	asc   SortDirection
+}
+
+func (o sortOption) applyFind(fo *findOptions) {
+	dir := 1
+	if !o.asc {
+		dir = -1
+	}
+	fo.sort = append(fo.sort, bson.E{Key: o.field, Value: dir})
+}
 
 // WithSort sorts results by the given field. ascending=true for ASC, false for DESC.
 func WithSort(field string, ascending SortDirection) FindOption {
-	return func(o *findOptions) {
-		dir := 1
-		if !ascending {
-			dir = -1
-		}
-		o.sort = append(o.sort, bson.E{Key: field, Value: dir})
-	}
+	return sortOption{field: field, asc: ascending}
 }
 
 // InsertOne inserts a single JSON document and returns its inserted ID.
@@ -137,8 +176,16 @@ func (c *mongoCollection) InsertMany(ctx context.Context, docs []byte) (InsertMa
 
 // FindOne returns the first document matching filter as JSON.
 // Returns ErrNoDocuments if no document matches.
-func (c *mongoCollection) FindOne(ctx context.Context, filter Filter) ([]byte, error) {
-	res := c.inner.FindOne(ctx, filter.raw)
+func (c *mongoCollection) FindOne(ctx context.Context, filter Filter, opts ...FindOneOption) ([]byte, error) {
+	fo := &findOneOptions{}
+	for _, o := range opts {
+		o.applyFindOne(fo)
+	}
+	mongoOpts := options.FindOne()
+	if len(fo.projection) > 0 {
+		mongoOpts.SetProjection(fo.projection)
+	}
+	res := c.inner.FindOne(ctx, filter.raw, mongoOpts)
 	var raw bson.D
 	if err := res.Decode(&raw); err != nil {
 		if errors.Is(err, mongo.ErrNoDocuments) {
@@ -153,7 +200,7 @@ func (c *mongoCollection) FindOne(ctx context.Context, filter Filter) ([]byte, e
 func (c *mongoCollection) Find(ctx context.Context, filter Filter, opts ...FindOption) ([]byte, error) {
 	fo := &findOptions{}
 	for _, o := range opts {
-		o(fo)
+		o.applyFind(fo)
 	}
 
 	mongoOpts := options.Find()
@@ -165,6 +212,9 @@ func (c *mongoCollection) Find(ctx context.Context, filter Filter, opts ...FindO
 	}
 	if len(fo.sort) > 0 {
 		mongoOpts.SetSort(fo.sort)
+	}
+	if len(fo.projection) > 0 {
+		mongoOpts.SetProjection(fo.projection)
 	}
 
 	cur, err := c.inner.Find(ctx, filter.raw, mongoOpts)
