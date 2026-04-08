@@ -21,6 +21,7 @@ type Collection interface {
 	UpdateMany(ctx context.Context, filter Filter, update []byte, opts ...UpdateOption) (UpdateResult, error)
 	ReplaceOne(ctx context.Context, filter Filter, replacement []byte, opts ...UpdateOption) (UpdateResult, error)
 	FindOneAndUpdate(ctx context.Context, filter Filter, update []byte, opts ...FindOneAndUpdateOption) ([]byte, error)
+	FindOneAndReplace(ctx context.Context, filter Filter, replacement []byte, opts ...FindOneAndUpdateOption) ([]byte, error)
 	FindOneAndDelete(ctx context.Context, filter Filter) ([]byte, error)
 	DeleteOne(ctx context.Context, filter Filter) (DeleteResult, error)
 	DeleteMany(ctx context.Context, filter Filter) (DeleteResult, error)
@@ -343,6 +344,32 @@ func (c *mongoCollection) FindOneAndUpdate(ctx context.Context, filter Filter, u
 		mongoOpts.SetReturnDocument(options.After)
 	}
 	res := c.inner.FindOneAndUpdate(ctx, filter.raw, u, mongoOpts)
+	var raw bson.D
+	if err := res.Decode(&raw); err != nil {
+		if errors.Is(err, mongo.ErrNoDocuments) {
+			return nil, ErrNoDocuments
+		}
+		return nil, err
+	}
+	return bsonToJSON(raw)
+}
+
+// FindOneAndReplace atomically finds the first document matching filter, replaces it, and returns it.
+// Returns ErrNoDocuments if no document matches.
+func (c *mongoCollection) FindOneAndReplace(ctx context.Context, filter Filter, replacement []byte, opts ...FindOneAndUpdateOption) ([]byte, error) {
+	fo := &findOneAndUpdateOptions{}
+	for _, o := range opts {
+		o(fo)
+	}
+	r, err := jsonToBSON(replacement)
+	if err != nil {
+		return nil, err
+	}
+	mongoOpts := options.FindOneAndReplace()
+	if fo.returnAfter {
+		mongoOpts.SetReturnDocument(options.After)
+	}
+	res := c.inner.FindOneAndReplace(ctx, filter.raw, r, mongoOpts)
 	var raw bson.D
 	if err := res.Decode(&raw); err != nil {
 		if errors.Is(err, mongo.ErrNoDocuments) {

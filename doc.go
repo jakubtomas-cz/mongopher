@@ -210,15 +210,19 @@
 //
 // # Atomic find-and-modify
 //
-// FindOneAndUpdate and FindOneAndDelete find a document, apply the change,
-// and return the document — all atomically. Both return ErrNoDocuments when
-// no document matches the filter.
+// FindOneAndUpdate, FindOneAndReplace, and FindOneAndDelete find a document,
+// apply the change, and return the document — all atomically. All three return
+// ErrNoDocuments when no document matches the filter.
 //
 //	// Returns the document before the update (default)
 //	doc, err := col.FindOneAndUpdate(ctx, filter, mongopher.Set([]byte(`{"age":31}`)))
 //
 //	// Returns the document after the update
 //	doc, err = col.FindOneAndUpdate(ctx, filter, update, mongopher.WithReturnAfter())
+//
+//	// Swap the entire document; returns before (default) or after
+//	doc, err = col.FindOneAndReplace(ctx, filter, []byte(`{"name":"Alice","age":31}`))
+//	doc, err = col.FindOneAndReplace(ctx, filter, replacement, mongopher.WithReturnAfter())
 //
 //	// Returns the deleted document
 //	doc, err = col.FindOneAndDelete(ctx, filter)

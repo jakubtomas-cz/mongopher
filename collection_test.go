@@ -1691,6 +1691,55 @@ func TestFindOneAndDelete_NoMatch(t *testing.T) {
 	}
 }
 
+func TestFindOneAndReplace_ReturnBefore(t *testing.T) {
+	ctx := context.Background()
+	c := col(t)
+	seedDocs(t, c, `{"name":"Alice","age":30}`)
+
+	filter, _ := mongopher.FilterFromJSON([]byte(`{"name":"Alice"}`))
+	doc, err := c.FindOneAndReplace(ctx, filter, []byte(`{"name":"Alice","age":31,"city":"Prague"}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	result, _ := mongopher.UnmarshalAs[map[string]any](doc)
+	if result["age"] != float64(30) {
+		t.Fatalf("expected age=30 (before), got %v", result["age"])
+	}
+	if _, ok := result["city"]; ok {
+		t.Error("expected 'city' to be absent in before-document")
+	}
+}
+
+func TestFindOneAndReplace_ReturnAfter(t *testing.T) {
+	ctx := context.Background()
+	c := col(t)
+	seedDocs(t, c, `{"name":"Alice","age":30}`)
+
+	filter, _ := mongopher.FilterFromJSON([]byte(`{"name":"Alice"}`))
+	doc, err := c.FindOneAndReplace(ctx, filter, []byte(`{"name":"Alice","age":31,"city":"Prague"}`), mongopher.WithReturnAfter())
+	if err != nil {
+		t.Fatal(err)
+	}
+	result, _ := mongopher.UnmarshalAs[map[string]any](doc)
+	if result["age"] != float64(31) {
+		t.Fatalf("expected age=31 (after), got %v", result["age"])
+	}
+	if result["city"] != "Prague" {
+		t.Fatalf("expected city=Prague, got %v", result["city"])
+	}
+}
+
+func TestFindOneAndReplace_NoMatch(t *testing.T) {
+	ctx := context.Background()
+	c := col(t)
+
+	filter, _ := mongopher.FilterFromJSON([]byte(`{"name":"nobody"}`))
+	_, err := c.FindOneAndReplace(ctx, filter, []byte(`{"name":"nobody"}`))
+	if !errors.Is(err, mongopher.ErrNoDocuments) {
+		t.Fatalf("expected ErrNoDocuments, got %v", err)
+	}
+}
+
 // recordingCollection wraps a Collection and counts InsertOne calls.
 // This demonstrates the wrapper pattern enabled by the Collection interface.
 type recordingCollection struct {
