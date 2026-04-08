@@ -335,7 +335,7 @@ res, err := col.UpdateMany(ctx, filter, mongopher.Inc([]byte(`{"loginCount":1}`)
 fmt.Println(res.MatchedCount, res.ModifiedCount)
 ```
 
-Available helpers: `Set`, `Unset`, `Inc`, `Push`, `Pull`, `AddToSet`, `Rename`.
+Available helpers: `Set`, `Unset`, `Inc`, `Mul`, `Min`, `Max`, `Push`, `Pull`, `Pop`, `AddToSet`, `Rename`.
 
 This pattern is especially useful when the JSON comes from an HTTP request body — it passes straight through without any wrapping ceremony:
 

@@ -61,3 +61,35 @@ func TestRename(t *testing.T) {
 		t.Fatalf("got %s, want %s", got, want)
 	}
 }
+
+func TestMul(t *testing.T) {
+	got := mongopher.Mul([]byte(`{"price":1.25}`))
+	want := `{"$mul":{"price":1.25}}`
+	if string(got) != want {
+		t.Fatalf("got %s, want %s", got, want)
+	}
+}
+
+func TestMin(t *testing.T) {
+	got := mongopher.Min([]byte(`{"score":0}`))
+	want := `{"$min":{"score":0}}`
+	if string(got) != want {
+		t.Fatalf("got %s, want %s", got, want)
+	}
+}
+
+func TestMax(t *testing.T) {
+	got := mongopher.Max([]byte(`{"score":100}`))
+	want := `{"$max":{"score":100}}`
+	if string(got) != want {
+		t.Fatalf("got %s, want %s", got, want)
+	}
+}
+
+func TestPop(t *testing.T) {
+	got := mongopher.Pop([]byte(`{"tags":1}`))
+	want := `{"$pop":{"tags":1}}`
+	if string(got) != want {
+		t.Fatalf("got %s, want %s", got, want)
+	}
+}

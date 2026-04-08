@@ -176,7 +176,7 @@
 //	res, err := col.UpdateMany(ctx, filter, mongopher.Inc([]byte(`{"loginCount":1}`)))
 //	fmt.Println(res.MatchedCount, res.ModifiedCount)
 //
-// Available helpers: Set, Unset, Inc, Push, Pull, AddToSet, Rename.
+// Available helpers: Set, Unset, Inc, Mul, Min, Max, Push, Pull, Pop, AddToSet, Rename.
 //
 // This is especially useful when forwarding a request body — the JSON passes
 // straight through without any wrapping ceremony:
