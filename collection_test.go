@@ -1043,6 +1043,52 @@ func TestOr(t *testing.T) {
 	}
 }
 
+func TestRegex(t *testing.T) {
+	ctx := context.Background()
+	c := col(t)
+	seedDocs(t, c,
+		`{"name":"Alice"}`,
+		`{"name":"Bob"}`,
+		`{"name":"Alex"}`,
+	)
+
+	docs, err := c.Find(ctx, mongopher.Regex("name", "^Al"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	n := names(docs)
+	if len(n) != 2 {
+		t.Fatalf("expected 2 docs, got %v", n)
+	}
+	got := map[string]bool{n[0]: true, n[1]: true}
+	if !got["Alice"] || !got["Alex"] {
+		t.Fatalf("expected [Alice Alex], got %v", n)
+	}
+}
+
+func TestRegexWithFlags(t *testing.T) {
+	ctx := context.Background()
+	c := col(t)
+	seedDocs(t, c,
+		`{"name":"Alice"}`,
+		`{"name":"bob"}`,
+		`{"name":"BOB"}`,
+	)
+
+	docs, err := c.Find(ctx, mongopher.RegexWithFlags("name", "^bob$", "i"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	n := names(docs)
+	if len(n) != 2 {
+		t.Fatalf("expected 2 docs, got %v", n)
+	}
+	got := map[string]bool{n[0]: true, n[1]: true}
+	if !got["bob"] || !got["BOB"] {
+		t.Fatalf("expected [bob BOB], got %v", n)
+	}
+}
+
 func TestWithFields_Find(t *testing.T) {
 	ctx := context.Background()
 	c := col(t)

@@ -106,6 +106,8 @@
 //	mongopher.Lte("age", 65)
 //	mongopher.In("role", "admin", "owner")
 //	mongopher.Exists("deletedAt", false)
+//	mongopher.Regex("name", "^Al")
+//	mongopher.RegexWithFlags("name", "^alice$", "i")
 //
 //	// Combine conditions
 //	mongopher.And(mongopher.Eq("status", "active"), mongopher.Gt("age", 18))
@@ -113,7 +115,7 @@
 //	// Match any of several conditions
 //	mongopher.Or(mongopher.Eq("role", "admin"), mongopher.Eq("role", "owner"))
 //
-//	// Raw JSON for anything else ($regex, dot notation, ...)
+//	// Raw JSON for anything else (dot notation, nested operators, ...)
 //	filter, err := mongopher.FilterFromJSON([]byte(`{"name":"Alice"}`))
 //
 //	// Filter by _id:

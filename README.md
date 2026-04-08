@@ -170,6 +170,10 @@ mongopher.In("role", "admin", "owner")
 mongopher.Exists("deletedAt", false) // documents without the field
 mongopher.Exists("deletedAt", true)  // documents with the field
 
+// Regular expressions
+mongopher.Regex("name", "^Al")                    // starts with "Al"
+mongopher.RegexWithFlags("name", "^alice$", "i")  // case-insensitive
+
 // Combine with And
 mongopher.And(
     mongopher.Eq("status", "active"),
@@ -204,7 +208,7 @@ res, err := col.UpdateMany(ctx, mongopher.In("role", "admin", "owner"), mongophe
 res, err := col.DeleteMany(ctx, mongopher.Exists("deletedAt", true))
 ```
 
-For anything not covered by the helpers — `$regex`, dot notation, nested operators — fall back to raw JSON:
+For anything not covered by the helpers — dot notation, nested operators — fall back to raw JSON:
 
 ```go
 filter, err := mongopher.FilterFromJSON([]byte(`{"address.city":"Prague"}`))

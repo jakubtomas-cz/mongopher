@@ -91,6 +91,20 @@ func In(field string, values ...any) Filter {
 	return Filter{raw: bson.D{{Key: field, Value: bson.D{{Key: "$in", Value: coerced}}}}}
 }
 
+// Regex matches documents where field matches the given regular expression pattern.
+func Regex(field, pattern string) Filter {
+	return Filter{raw: bson.D{{Key: field, Value: bson.D{{Key: "$regex", Value: pattern}}}}}
+}
+
+// RegexWithFlags matches documents where field matches the given regular expression pattern
+// with the given options flags (e.g. "i" for case-insensitive, "m" for multiline).
+func RegexWithFlags(field, pattern, flags string) Filter {
+	return Filter{raw: bson.D{{Key: field, Value: bson.D{
+		{Key: "$regex", Value: pattern},
+		{Key: "$options", Value: flags},
+	}}}}
+}
+
 // And combines multiple filters into a single filter that matches documents
 // satisfying all of them.
 func And(filters ...Filter) Filter {
