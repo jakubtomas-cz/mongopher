@@ -108,6 +108,11 @@
 //	mongopher.Exists("deletedAt", false)
 //	mongopher.Regex("name", "^Al")
 //	mongopher.RegexWithFlags("name", "^alice$", "i")
+//	mongopher.TextSearch("hello world") // full-text search
+//
+// TextSearch requires a text index on the collection — MongoDB will return an
+// error if none exists. Create one with CreateIndex and TextSearchKey before
+// using this filter. See the Indexes section below.
 //
 //	// Combine conditions
 //	mongopher.And(mongopher.Eq("status", "active"), mongopher.Gt("age", 18))
@@ -290,6 +295,14 @@
 //	name, err := col.CreateIndex(ctx, []mongopher.IndexKey{
 //	    {Field: "createdAt", Direction: mongopher.ASC},
 //	}, mongopher.WithTTL(3600))
+//
+//	// Text index — enables full-text search via TextSearch filter
+//	// MongoDB allows only one text index per collection, but it can span multiple fields
+//	name, err := col.CreateIndex(ctx, []mongopher.IndexKey{
+//	    mongopher.TextSearchKey("title"),
+//	    mongopher.TextSearchKey("body"),
+//	})
+//	docs, err := col.Find(ctx, mongopher.TextSearch("hello world"))
 //
 //	// Drop an index by name
 //	err = col.DropIndex(ctx, name)

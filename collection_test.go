@@ -1404,6 +1404,43 @@ func TestCreateIndex_CompoundUnique(t *testing.T) {
 	}
 }
 
+func TestCreateTextIndex(t *testing.T) {
+	ctx := context.Background()
+	c := col(t)
+
+	if _, err := c.CreateIndex(ctx, []mongopher.IndexKey{
+		mongopher.TextSearchKey("title"),
+		mongopher.TextSearchKey("body"),
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := c.InsertMany(ctx, []byte(`[
+		{"title":"Go programming","body":"Go is a statically typed language"},
+		{"title":"Python basics","body":"Python is a dynamically typed language"},
+		{"title":"Database design","body":"Indexes improve query performance"}
+	]`)); err != nil {
+		t.Fatal(err)
+	}
+
+	// "statically" appears only in the Go programming document
+	data, err := c.Find(ctx, mongopher.TextSearch("statically"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	docs, err := mongopher.UnmarshalAs[[]map[string]any](data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(docs) != 1 {
+		t.Fatalf("expected 1 result, got %d", len(docs))
+	}
+	if docs[0]["title"] != "Go programming" {
+		t.Errorf("expected 'Go programming', got %v", docs[0]["title"])
+	}
+}
+
 func TestListIndexes(t *testing.T) {
 	ctx := context.Background()
 	c := col(t)

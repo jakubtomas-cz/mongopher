@@ -11,7 +11,7 @@ Pass JSON in, get JSON back. No struct tags, no code generation, no ORM ceremony
 - Atomic find-and-modify: `FindOneAndUpdate`, `FindOneAndDelete`
 - Full document replacement with `ReplaceOne`
 - Upsert support on `UpdateOne`, `UpdateMany`, and `ReplaceOne`
-- Typed filter helpers (`Eq`, `Ne`, `Gt`, `In`, `Exists`, `And`, `Or`, ...) with raw JSON fallback
+- Typed filter helpers (`Eq`, `Ne`, `Gt`, `In`, `Exists`, `And`, `Or`, `TextSearch`, ...) with raw JSON fallback
 - Update operator helpers (`Set`, `Inc`, `Push`, ...) — wrap any JSON body in a MongoDB operator, no string construction needed
 - Sorting, pagination, and multi-field ordering
 - ObjectIDs as plain hex strings — no Extended JSON noise
@@ -174,6 +174,9 @@ mongopher.Exists("deletedAt", true)  // documents with the field
 mongopher.Regex("name", "^Al")                    // starts with "Al"
 mongopher.RegexWithFlags("name", "^alice$", "i")  // case-insensitive
 
+// Full-text search
+mongopher.TextSearch("hello world")
+
 // Combine with And
 mongopher.And(
     mongopher.Eq("status", "active"),
@@ -213,6 +216,8 @@ For anything not covered by the helpers — dot notation, nested operators — f
 ```go
 filter, err := mongopher.FilterFromJSON([]byte(`{"address.city":"Prague"}`))
 ```
+
+> **Important:** `TextSearch` filter requires a text index on the collection. Without one, MongoDB will return an error. Create a text index with `TextSearchKey` before using this filter — see the [Indexes](#indexes) section.
 
 ## CRUD operations
 
@@ -487,6 +492,14 @@ name, err := col.CreateIndex(ctx, []mongopher.IndexKey{
 name, err := col.CreateIndex(ctx, []mongopher.IndexKey{
     {Field: "phone", Direction: mongopher.ASC},
 }, mongopher.WithSparse())
+
+// Text index — enables full-text search via TextSearch filter
+// MongoDB allows only one text index per collection, but it can span multiple fields
+name, err := col.CreateIndex(ctx, []mongopher.IndexKey{
+    mongopher.TextSearchKey("title"),
+    mongopher.TextSearchKey("body"),
+})
+docs, err := col.Find(ctx, mongopher.TextSearch("hello world"))
 
 // Drop an index by name
 err = col.DropIndex(ctx, name)

@@ -105,6 +105,12 @@ func RegexWithFlags(field, pattern, flags string) Filter {
 	}}}}
 }
 
+// TextSearch matches documents where any text-indexed field contains the given search terms.
+// Requires a text index on the collection — use CreateIndex with TextSearchKey to create one.
+func TextSearch(query string) Filter {
+	return Filter{raw: bson.D{{Key: "$text", Value: bson.D{{Key: "$search", Value: query}}}}}
+}
+
 // And combines multiple filters into a single filter that matches documents
 // satisfying all of them.
 func And(filters ...Filter) Filter {

@@ -518,10 +518,18 @@ func WithTTL(seconds int32) IndexOption { return func(o *indexOptions) { o.ttl =
 type IndexKey struct {
 	Field     string
 	Direction SortDirection
+	text      bool
+}
+
+// TextSearchKey returns an IndexKey that creates a text index on the given field, needed for text search through documents.
+// MongoDB allows only one text index per collection, but it can span multiple fields.
+func TextSearchKey(field string) IndexKey {
+	return IndexKey{Field: field, text: true}
 }
 
 // CreateIndex creates an index on one or more fields and returns the index name.
 // Pass a single IndexKey for a single-field index, or multiple for a compound index.
+// Use TextSearchKey to include text-searchable fields (enables TextSearch filters).
 func (c *mongoCollection) CreateIndex(ctx context.Context, keys []IndexKey, opts ...IndexOption) (string, error) {
 	io := &indexOptions{}
 	for _, o := range opts {
@@ -530,6 +538,10 @@ func (c *mongoCollection) CreateIndex(ctx context.Context, keys []IndexKey, opts
 
 	bsonKeys := make(bson.D, len(keys))
 	for i, k := range keys {
+		if k.text {
+			bsonKeys[i] = bson.E{Key: k.Field, Value: "text"}
+			continue
+		}
 		dir := 1
 		if !k.Direction {
 			dir = -1
